@@ -21,6 +21,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # Usa siempre la misma clave de firma (guardada como secreto) para que el
+      # SHA-1 registrado en Google Cloud no cambie entre compilaciones.
+      - name: Restore fixed debug keystore
+        run: |
+          mkdir -p ~/.android
+          echo "${{ secrets.DEBUG_KEYSTORE_B64 }}" | base64 -d > ~/.android/debug.keystore
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep SHA1
+
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
