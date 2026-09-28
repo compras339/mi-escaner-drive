@@ -23,7 +23,7 @@ androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", ve
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
-play-services-document-scanner = { group = "com.google.android.gms", name = "play-services-document-scanner", version.ref = "documentScanner" }
+   play-services-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "documentScanner" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClient" }
 google-api-services-drive = { group = "com.google.apis", name = "google-api-services-drive", version.ref = "googleApiDrive" }
