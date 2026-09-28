@@ -10,45 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Check out your code
       - uses: actions/checkout@v4
 
-      # 2) Make the Gradle wrapper executable
-      - name: Make Gradle wrapper executable
-        run: chmod +x ./gradlew
-
-      # 3) Set up Java 11
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
 
-      # 4) Install Android SDK Command-Line Tools
-      - name: Install Android SDK
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip
-          # install under $HOME/android-sdk
-          export ANDROID_SDK_ROOT="$HOME/android-sdk"
-          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-          unzip cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
-          # accept licenses and install platforms & build-tools
-          yes | $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT --licenses
-          $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT \
-            "platform-tools" "platforms;android-31" "build-tools;31.0.0"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      # 5) Build the debug APK
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
       - name: Build Debug APK
-        run: |
-          # point Gradle at our SDK
-          export ANDROID_SDK_ROOT="$HOME/android-sdk"
-          ./gradlew clean assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon
 
-      # 6) Upload the APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: lfa-strip-reader-debug.apk
+          name: mi-escaner-drive-debug
           path: app/build/outputs/apk/debug/app-debug.apk
