@@ -45,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         private const val TAG = "MainActivity"
 
         /** Reemplaza este valor por el ID de tu carpeta de Google Drive. */
-        const val FOLDER_ID = "AQUI_MI_ID"
+        const val FOLDER_ID = "1zD07AzUmTo9tvRnVUmpO2Dk7uJe65PkZ"
 
         private const val APP_NAME = "DocScanner"
         private const val MIME_JPEG = "image/jpeg"
