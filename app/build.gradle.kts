@@ -1,59 +1,61 @@
-plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
-}
+// build.gradle.kts (módulo :app)
+// Solo se muestran los bloques relevantes: packaging (necesario para las librerías
+// de Google API Client) y dependencies. Mantén el resto de tu configuración de android {}.
 
 android {
-    namespace = "com.lambdacoresw.app1"
-    compileSdk = 36
+    // ... namespace, compileSdk, defaultConfig, buildTypes, etc.
 
-    defaultConfig {
-        applicationId = "com.lambdacoresw.app1"
-        minSdk = 24
-        targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+    // Las librerías google-api-client / google-http-client incluyen archivos META-INF
+    // duplicados que hacen fallar el empaquetado. Esta exclusión lo soluciona.
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/INDEX.LIST"
             )
         }
     }
+
+    // Java 17 recomendado para las últimas versiones de AGP
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
-    }
-    buildFeatures {
-        compose = true
+        jvmTarget = "17"
     }
 }
 
 dependencies {
 
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.ui.test.junit4)
-    debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
+    // ---------- AndroidX / UI ----------
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.activity:activity-ktx:1.9.2")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
+    implementation("com.google.android.material:material:1.12.0")
+
+    // ---------- Escáner de documentos (Google Play Services) ----------
+    implementation("com.google.android.gms:play-services-document-scanner:16.0.0-beta1")
+
+    // ---------- Google Sign-In ----------
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+
+    // ---------- Google Drive API v3 ----------
+    // Se excluye org.apache.httpcomponents porque Android ya incluye su propia
+    // implementación y provoca conflictos de clases duplicadas.
+    implementation("com.google.api-client:google-api-client-android:1.33.0") {
+        exclude(group = "org.apache.httpcomponents")
+    }
+    implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0") {
+        exclude(group = "org.apache.httpcomponents")
+    }
+
+    // ---------- Corrutinas ----------
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
