@@ -1,281 +1,316 @@
-package com.example.myapp   // ← change this to your actual package
+package com.example.docscanner
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Button
-import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.*
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
-import org.opencv.android.OpenCVLoader
-import org.opencv.android.Utils
-import org.opencv.core.*
-import org.opencv.imgproc.Imgproc
-import java.io.File
-import kotlin.concurrent.thread
+import androidx.lifecycle.lifecycleScope
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.Scope
+import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException
+import com.google.api.client.http.InputStreamContent
+import com.google.api.client.http.javanet.NetHttpTransport
+import com.google.api.client.json.gson.GsonFactory
+import com.google.api.services.drive.Drive
+import com.google.api.services.drive.DriveScopes
+import com.google.api.services.drive.model.File as DriveFile
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+
     companion object {
-        private const val CAMERA_PERMISSION_CODE = 100
+        private const val TAG = "MainActivity"
+
+        /** Reemplaza este valor por el ID de tu carpeta de Google Drive. */
+        const val FOLDER_ID = "AQUI_MI_ID"
+
+        private const val APP_NAME = "DocScanner"
+        private const val MIME_JPEG = "image/jpeg"
     }
 
-    private lateinit var previewView: PreviewView
-    private lateinit var btnCapture: Button
-    private lateinit var resultImage: ImageView
-    private lateinit var resultText: TextView
-    private lateinit var imageCapture: ImageCapture
+    // ---------- Vistas ----------
+    private lateinit var tvStatus: TextView
+    private lateinit var btnSignIn: Button
+    private lateinit var btnScan: Button
+    private lateinit var progressBar: ProgressBar
+
+    // ---------- Google Sign-In ----------
+    private lateinit var googleSignInClient: GoogleSignInClient
+    private var currentAccount: GoogleSignInAccount? = null
+
+    /** Uri pendiente de subir cuando el usuario debe aceptar un consentimiento adicional. */
+    private var pendingUploadUri: Uri? = null
+
+    // ---------- Launchers (Activity Result API) ----------
+
+    /** Resultado del flujo de Google Sign-In. */
+    private val signInLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(ApiException::class.java)
+                onSignedIn(account)
+            } catch (e: ApiException) {
+                Log.e(TAG, "Fallo en Google Sign-In. Código: ${e.statusCode}", e)
+                onSignedOut()
+                setStatus("Error al iniciar sesión (código ${e.statusCode})")
+            }
+        }
+
+    /** Resultado del escáner de documentos (usa IntentSender). */
+    private val scannerLauncher: ActivityResultLauncher<IntentSenderRequest> =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode != RESULT_OK) {
+                showLoading(false)
+                setStatus("Escaneo cancelado")
+                return@registerForActivityResult
+            }
+
+            val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+            val imageUri = scanResult?.pages?.firstOrNull()?.imageUri
+
+            if (imageUri == null) {
+                showLoading(false)
+                setStatus("No se obtuvo ninguna imagen del escáner")
+                return@registerForActivityResult
+            }
+
+            uploadToDrive(imageUri)
+        }
+
+    /**
+     * Pantalla de consentimiento adicional de Google (UserRecoverableAuthIOException).
+     * Ocurre si el usuario aún no ha concedido el scope DRIVE_FILE al hacer la llamada a la API.
+     */
+    private val consentLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val uri = pendingUploadUri
+            pendingUploadUri = null
+            if (result.resultCode == RESULT_OK && uri != null) {
+                uploadToDrive(uri) // Reintentamos la subida tras aceptar el consentimiento
+            } else {
+                showLoading(false)
+                setStatus("Permiso de Drive denegado. No se pudo subir el archivo.")
+            }
+        }
+
+    // ---------- Ciclo de vida ----------
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        previewView   = findViewById(R.id.previewView)
-        btnCapture    = findViewById(R.id.btnCapture)
-        resultImage   = findViewById(R.id.resultImage)
-        resultText    = findViewById(R.id.resultText)
+        tvStatus = findViewById(R.id.tvStatus)
+        btnSignIn = findViewById(R.id.btnSignIn)
+        btnScan = findViewById(R.id.btnScan)
+        progressBar = findViewById(R.id.progressBar)
 
-        // 1. Initialize OpenCV
-        if (!OpenCVLoader.initDebug()) {
-            Log.e("MainActivity", "Failed to load OpenCV")
-        } else {
-            Log.i("MainActivity", "OpenCV loaded successfully")
+        setupGoogleSignIn()
+
+        btnSignIn.setOnClickListener {
+            if (currentAccount == null) signIn() else signOut()
         }
-
-        // 2. Hook capture button
-        btnCapture.setOnClickListener { takePhoto() }
-
-        // 3. Check/request camera permission, then start preview
-        checkCameraPermission()
+        btnScan.setOnClickListener { startScanner() }
     }
 
-    // --- Permissions ----------------------------------
-    private fun checkCameraPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.CAMERA),
-                CAMERA_PERMISSION_CODE
-            )
+    override fun onStart() {
+        super.onStart()
+        // Restaurar sesión previa si existe y ya tiene el scope de Drive
+        val lastAccount = GoogleSignIn.getLastSignedInAccount(this)
+        if (lastAccount != null &&
+            GoogleSignIn.hasPermissions(lastAccount, Scope(DriveScopes.DRIVE_FILE))
+        ) {
+            onSignedIn(lastAccount)
         } else {
-            startCamera()
+            onSignedOut()
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<String>, grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == CAMERA_PERMISSION_CODE &&
-            grantResults.isNotEmpty() &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startCamera()
-        } else {
-            Toast.makeText(this, "Camera permission is required", Toast.LENGTH_LONG).show()
+    // ---------- Autenticación ----------
+
+    private fun setupGoogleSignIn() {
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestScopes(Scope(DriveScopes.DRIVE_FILE)) // Scope explícito para Drive
+            .build()
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
+    }
+
+    private fun signIn() {
+        setStatus("Abriendo inicio de sesión de Google...")
+        signInLauncher.launch(googleSignInClient.signInIntent)
+    }
+
+    private fun signOut() {
+        googleSignInClient.signOut().addOnCompleteListener {
+            onSignedOut()
+            setStatus("Sesión cerrada. Esperando inicio de sesión")
         }
     }
 
-    // --- CameraX preview + capture --------------------
-    private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
+    private fun onSignedIn(account: GoogleSignInAccount) {
+        currentAccount = account
+        btnSignIn.text = "Cerrar sesión (${account.email ?: "cuenta"})"
+        btnScan.isEnabled = true
+        setStatus("Cuenta vinculada: ${account.email}\nListo para escanear")
+    }
 
-            // Preview use-case
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
+    private fun onSignedOut() {
+        currentAccount = null
+        btnSignIn.text = "Vincular cuenta de Google"
+        btnScan.isEnabled = false
+        setStatus("Esperando inicio de sesión")
+    }
+
+    // ---------- Escáner ----------
+
+    private fun startScanner() {
+        val options = GmsDocumentScannerOptions.Builder()
+            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+            .setPageLimit(1)
+            .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+            .setGalleryImportAllowed(false)
+            .build()
+
+        val scanner = GmsDocumentScanning.getClient(options)
+
+        showLoading(true)
+        setStatus("Escaneando...")
+
+        scanner.getStartScanIntent(this)
+            .addOnSuccessListener { intentSender ->
+                scannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
             }
-
-            // ImageCapture use-case
-            imageCapture = ImageCapture.Builder().build()
-
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                this, cameraSelector, preview, imageCapture
-            )
-        }, ContextCompat.getMainExecutor(this))
+            .addOnFailureListener { e ->
+                Log.e(TAG, "No se pudo iniciar el escáner", e)
+                showLoading(false)
+                setStatus("Error al abrir el escáner: ${e.localizedMessage}")
+                Toast.makeText(
+                    this,
+                    "Asegúrate de tener Google Play Services actualizado",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
     }
 
-    private fun takePhoto() {
-        // Temporary file in cache
-        val tmpFile = File(cacheDir, "lfa.jpg")
-        val options = ImageCapture.OutputFileOptions.Builder(tmpFile).build()
+    // ---------- Subida a Google Drive ----------
 
-        imageCapture.takePicture(
-            options,
-            ContextCompat.getMainExecutor(this),
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    val bmp = BitmapFactory.decodeFile(tmpFile.absolutePath)
-                    processBitmap(bmp)
+    private fun uploadToDrive(imageUri: Uri) {
+        val account = currentAccount
+        if (account == null) {
+            showLoading(false)
+            setStatus("No hay cuenta vinculada")
+            return
+        }
+
+        showLoading(true)
+        setStatus("Subiendo a Drive...")
+
+        lifecycleScope.launch {
+            try {
+                val fileId = withContext(Dispatchers.IO) {
+                    performUpload(account, imageUri)
                 }
-                override fun onError(exc: ImageCaptureException) {
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Capture failed: ${exc.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+                showLoading(false)
+                setStatus("Archivo subido: $fileId")
+                Toast.makeText(this@MainActivity, "Subida completada", Toast.LENGTH_SHORT).show()
+
+            } catch (e: UserRecoverableAuthIOException) {
+                // El usuario debe aprobar el acceso a Drive en una pantalla de Google
+                Log.w(TAG, "Se requiere consentimiento adicional del usuario", e)
+                pendingUploadUri = imageUri
+                setStatus("Se requiere autorización adicional...")
+                consentLauncher.launch(e.intent)
+
+            } catch (e: IOException) {
+                Log.e(TAG, "Error de red / API al subir a Drive", e)
+                showLoading(false)
+                setStatus("Error al subir a Drive: ${e.localizedMessage}")
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error inesperado al subir a Drive", e)
+                showLoading(false)
+                setStatus("Error inesperado: ${e.localizedMessage}")
             }
+        }
+    }
+
+    /**
+     * Ejecuta la subida real. DEBE llamarse desde Dispatchers.IO.
+     * @return el ID del archivo creado en Drive.
+     */
+    @Throws(IOException::class)
+    private fun performUpload(account: GoogleSignInAccount, imageUri: Uri): String {
+        // 1. Credencial OAuth2 con la cuenta del usuario
+        val credential = GoogleAccountCredential
+            .usingOAuth2(this, listOf(DriveScopes.DRIVE_FILE))
+            .apply { selectedAccount = account.account }
+
+        // 2. Cliente de Drive
+        val driveService = Drive.Builder(
+            NetHttpTransport(),
+            GsonFactory.getDefaultInstance(),
+            credential
         )
-    }
+            .setApplicationName(APP_NAME)
+            .build()
 
-    // --- Processing pipeline --------------------------
-    private fun processBitmap(bmp: Bitmap) {
-        thread {
-            // 1. Bitmap → Mat
-            val srcMat = Mat()
-            Utils.bitmapToMat(bmp, srcMat)
+        // 3. Metadatos del archivo (nombre + carpeta destino)
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val metadata = DriveFile().apply {
+            name = "Escaneo_$timestamp.jpg"
+            mimeType = MIME_JPEG
+            parents = listOf(FOLDER_ID)
+        }
 
-            // 2. Locate & warp cassette
-            val cassette = detectCassette(srcMat)
-            if (cassette == null) {
-                runOnUiThread {
-                    Toast.makeText(this, "Couldn’t find cassette", Toast.LENGTH_SHORT).show()
-                }
-                return@thread
-            }
+        // 4. Contenido: leemos el Uri devuelto por el escáner
+        val inputStream = contentResolver.openInputStream(imageUri)
+            ?: throw IOException("No se pudo abrir el archivo escaneado: $imageUri")
 
-            // 3. Run strip-analysis and get (annotated Bitmap, results)
-            val (outBmp, result) = processStripMat(cassette)
-
-            // 4. Display on UI
-            runOnUiThread {
-                resultImage.setImageBitmap(outBmp)
-                resultText.text = "Peaks: ${result.peakPositions}  Ratio: ${"%.2f".format(result.ratio)}"
-            }
+        return inputStream.use { stream ->
+            val content = InputStreamContent(MIME_JPEG, stream)
+            val uploaded = driveService.files()
+                .create(metadata, content)
+                .setFields("id, name")
+                .execute()
+            Log.i(TAG, "Subido a Drive: ${uploaded.name} (${uploaded.id})")
+            uploaded.id
         }
     }
 
-    private fun detectCassette(mat: Mat): Mat? {
-        // Grayscale + blur
-        val gray = Mat()
-        Imgproc.cvtColor(mat, gray, Imgproc.COLOR_BGR2GRAY)
-        Imgproc.GaussianBlur(gray, gray, Size(5.0, 5.0), 0.0)
+    // ---------- Utilidades de UI ----------
 
-        // Canny edges
-        val edges = Mat()
-        Imgproc.Canny(gray, edges, 50.0, 150.0)
-
-        // Find contours & pick largest quadrilateral
-        val contours = mutableListOf<MatOfPoint>()
-        Imgproc.findContours(edges, contours, Mat(), Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE)
-        var bestQuad: MatOfPoint2f? = null
-        var bestArea = 0.0
-        for (c in contours) {
-            val c2f = MatOfPoint2f(*c.toArray())
-            val peri = Imgproc.arcLength(c2f, true)
-            val approx = MatOfPoint2f()
-            Imgproc.approxPolyDP(c2f, approx, 0.02 * peri, true)
-            if (approx.total() == 4L) {
-                val area = Imgproc.contourArea(approx)
-                if (area > bestArea) {
-                    bestArea = area
-                    bestQuad = approx
-                }
-            }
-        }
-        if (bestQuad == null) return null
-
-        // Sort points and warp to a fixed rectangle
-        val pts = bestQuad.toArray().sortedBy { it.x + it.y }
-        val src = MatOfPoint2f(*pts.toTypedArray())
-        val dstPts = arrayOf(
-            Point(0.0, 0.0),
-            Point(600.0, 0.0),
-            Point(600.0, 200.0),
-            Point(0.0, 200.0)
-        )
-        val dst = MatOfPoint2f(*dstPts)
-        val M = Imgproc.getPerspectiveTransform(src, dst)
-        val out = Mat()
-        Imgproc.warpPerspective(mat, out, M, Size(600.0, 200.0))
-        return out
+    private fun setStatus(message: String) {
+        tvStatus.text = message
     }
 
-    private fun processStripMat(cassette: Mat): Pair<Bitmap, AnalysisResult> {
-        // Extract red channel & invert
-        val red = Mat(); Core.extractChannel(cassette, red, 2)
-        val inv = Mat(); Core.bitwise_not(red, inv)
-
-        // Morphological open → background
-        val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(31.0, 1.0))
-        val bg = Mat(); Imgproc.morphologyEx(inv, bg, Imgproc.MORPH_OPEN, kernel)
-
-        // Top-hat & median-blur
-        val topHat = Mat(); Core.subtract(inv, bg, topHat)
-        val clean = Mat(); Imgproc.medianBlur(topHat, clean, 5)
-
-        // Build 1D row-profile
-        val centre = clean.rows() / 2
-        val halfSpan = 2
-        val xStart = 225
-        val xEnd   = 325
-        val prof = DoubleArray(xEnd - xStart) { 0.0 }
-        for (r in (centre - halfSpan)..(centre + halfSpan)) {
-            for (x in xStart until xEnd) {
-                prof[x - xStart] += clean.get(r, x)[0]
-            }
-        }
-        val rows = (2 * halfSpan + 1).toDouble()
-        for (i in prof.indices) prof[i] /= rows
-
-        // Peak & area analysis
-        val result = analyseProfileKotlin(prof, ampMin = 2.0)
-
-        // Draw vertical lines at each peak
-        val display = Mat()
-        Imgproc.cvtColor(cassette, display, Imgproc.COLOR_BGR2RGBA)
-        for (p in result.peakPositions) {
-            val x = xStart + p
-            Imgproc.line(display,
-                Point(x.toDouble(), 0.0),
-                Point(x.toDouble(), cassette.rows().toDouble()),
-                Scalar(255.0, 0.0, 0.0, 255.0), 2)
-        }
-
-        // Convert back to Bitmap
-        val outBmp = Bitmap.createBitmap(display.cols(), display.rows(), Bitmap.Config.ARGB_8888)
-        Utils.matToBitmap(display, outBmp)
-        return Pair(outBmp, result)
+    private fun showLoading(loading: Boolean) {
+        progressBar.visibility = if (loading) View.VISIBLE else View.GONE
+        btnScan.isEnabled = !loading && currentAccount != null
+        btnSignIn.isEnabled = !loading
     }
-
-    private fun analyseProfileKotlin(y: DoubleArray, ampMin: Double): AnalysisResult {
-        // Find local maxima above ampMin
-        val peaks = mutableListOf<Int>()
-        for (i in 1 until y.size - 1) {
-            if (y[i] > y[i - 1] && y[i] >= y[i + 1] && y[i] >= ampMin) {
-                peaks.add(i)
-            }
-        }
-        if (peaks.isEmpty()) return AnalysisResult(emptyList(), emptyList(), null)
-
-        // Keep the top 2 peaks
-        val top2 = peaks.sortedByDescending { y[it] }.take(2).sorted()
-        val areas = mutableListOf<Double>()
-        for (p in top2) {
-            // find valley boundaries
-            var lv = p; while (lv > 0 && y[lv - 1] <= y[lv]) lv--
-            var rv = p; while (rv < y.size - 1 && y[rv + 1] <= y[rv]) rv++
-            areas.add(y.slice(lv..rv).sum())
-        }
-        val ratio = if (areas.size == 2 && areas[0] != 0.0) areas[1] / areas[0] else null
-        return AnalysisResult(top2, areas, ratio)
-    }
-
-    data class AnalysisResult(
-        val peakPositions: List<Int>,
-        val areas:           List<Double>,
-        val ratio:          Double?
-    )
 }
+
