@@ -24,9 +24,9 @@
     <!-- Icono decorativo -->
     <ImageView
         android:id="@+id/ivIcon"
-        android:layout_width="96dp"
-        android:layout_height="96dp"
-        android:layout_marginTop="48dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_marginTop="24dp"
         android:contentDescription="Icono de escáner"
         android:src="@android:drawable/ic_menu_camera"
         app:layout_constraintEnd_toEndOf="parent"
@@ -40,7 +40,7 @@
         android:id="@+id/tvStatus"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="24dp"
         android:background="?attr/colorSurfaceVariant"
         android:padding="16dp"
         android:text="Esperando inicio de sesión"
@@ -65,26 +65,57 @@
         app:layout_constraintTop_toBottomOf="@id/tvStatus"
         tools:visibility="visible" />
 
-    <!-- Botón 1: Vincular cuenta de Google -->
+    <!-- Botones de escaneo por sede -->
+    <LinearLayout
+        android:id="@+id/layoutSedes"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toTopOf="@id/btnSignIn"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnScanCp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:enabled="false"
+            android:text="Escanear CP"
+            tools:ignore="HardcodedText" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnScanPilar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:enabled="false"
+            android:text="Escanear Pilar"
+            tools:ignore="HardcodedText" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnScanVinedo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:enabled="false"
+            android:text="Escanear V Viñedo"
+            tools:ignore="HardcodedText" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnScanSambil"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:enabled="false"
+            android:text="Escanear V Sambil"
+            tools:ignore="HardcodedText" />
+    </LinearLayout>
+
+    <!-- Botón de cuenta -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnSignIn"
         style="@style/Widget.Material3.Button.OutlinedButton"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
         android:text="Vincular cuenta de Google"
-        app:layout_constraintBottom_toTopOf="@id/btnScan"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        tools:ignore="HardcodedText" />
-
-    <!-- Botón 2: Escanear documento (deshabilitado hasta iniciar sesión) -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnScan"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:enabled="false"
-        android:text="Escanear Documento"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
