@@ -5,17 +5,24 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="24dp"
+    android:paddingStart="24dp"
+    android:paddingTop="24dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="12dp"
     tools:context=".MainActivity">
 
-    <!-- Título -->
+    <!-- Título (se ajusta al ancho en una sola línea) -->
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="Escáner a Google Drive"
+        android:layout_height="40dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:text="Escáner de Compras"
         android:textAppearance="?attr/textAppearanceHeadlineMedium"
-        android:textAlignment="center"
+        app:autoSizeMaxTextSize="28sp"
+        app:autoSizeMinTextSize="14sp"
+        app:autoSizeTextType="uniform"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
@@ -131,9 +138,24 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="Vincular cuenta de Google"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/tvCredit"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         tools:ignore="HardcodedText" />
+
+    <!-- Crédito discreto -->
+    <TextView
+        android:id="@+id/tvCredit"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:alpha="0.55"
+        android:text="Creado por Jessica Flores"
+        android:textAlignment="center"
+        android:textSize="11sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        tools:ignore="HardcodedText,SmallSp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
