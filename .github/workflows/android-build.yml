@@ -21,19 +21,19 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Usa siempre la misma clave de firma (guardada como secreto) para que el
-      # SHA-1 registrado en Google Cloud no cambie entre compilaciones.
       - name: Restore fixed debug keystore
         run: |
-          mkdir -p ~/.android
-          echo "${{ secrets.DEBUG_KEYSTORE_B64 }}" | base64 -d > ~/.android/debug.keystore
-          keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep SHA1
+          echo "${{ secrets.DEBUG_KEYSTORE_B64 }}" | base64 -d > app/debug.keystore
+          keytool -list -v -keystore app/debug.keystore -storepass android | grep SHA1
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
+
+      - name: Show APK signing SHA-1
+        run: keytool -printcert -jarfile app/build/outputs/apk/debug/app-debug.apk | grep SHA1
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
