@@ -1,6 +1,8 @@
 package com.compras339.escanerdrive
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -35,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,7 +79,12 @@ class MainActivity : AppCompatActivity() {
             } catch (e: ApiException) {
                 Log.e(TAG, "Fallo en Google Sign-In. Código: ${e.statusCode}", e)
                 onSignedOut()
-                setStatus("Error al iniciar sesión (código ${e.statusCode})")
+                setStatus(
+                    "Error al iniciar sesión (código ${e.statusCode})\n\n" +
+                        "Paquete: $packageName\n" +
+                        "SHA-1 de esta app:\n${getSigningSha1()}\n\n" +
+                        "Compara este SHA-1 con el registrado en Google Cloud."
+                )
             }
         }
 
@@ -298,6 +306,36 @@ class MainActivity : AppCompatActivity() {
                 .execute()
             Log.i(TAG, "Subido a Drive: ${uploaded.name} (${uploaded.id})")
             uploaded.id
+        }
+    }
+
+    // ---------- Diagnóstico ----------
+
+    /**
+     * Devuelve el SHA-1 del certificado con el que está firmado este APK.
+     * Útil para comprobar que coincide con el registrado en Google Cloud Console.
+     */
+    private fun getSigningSha1(): String {
+        return try {
+            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val info = packageManager.getPackageInfo(
+                    packageName, PackageManager.GET_SIGNING_CERTIFICATES
+                )
+                info.signingInfo?.apkContentsSigners ?: emptyArray()
+            } else {
+                @Suppress("DEPRECATION")
+                val info = packageManager.getPackageInfo(
+                    packageName, PackageManager.GET_SIGNATURES
+                )
+                @Suppress("DEPRECATION")
+                info.signatures ?: emptyArray()
+            }
+            val md = MessageDigest.getInstance("SHA-1")
+            signatures.joinToString("\n") { sig ->
+                md.digest(sig.toByteArray()).joinToString(":") { "%02X".format(it) }
+            }
+        } catch (e: Exception) {
+            "desconocido (${e.message})"
         }
     }
 
