@@ -17,6 +17,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Firma de debug fija: si existe app/debug.keystore (lo genera el workflow
+    // desde el secreto DEBUG_KEYSTORE_B64), se usa esa clave. Si no, la de siempre.
+    signingConfigs {
+        getByName("debug") {
+            val fixedKeystore = rootProject.file("app/debug.keystore")
+            if (fixedKeystore.exists()) {
+                storeFile = fixedKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
