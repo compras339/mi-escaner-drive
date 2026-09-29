@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.EscanerDrive" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Color corporativo (azul marino del logo) -->
         <item name="colorPrimary">#122235</item>
         <item name="colorOnPrimary">#FFFFFF</item>
         <item name="colorSecondaryContainer">#DCE4EE</item>
         <item name="colorOnSecondaryContainer">#122235</item>
+        <!-- Pantalla de inicio (Android 12+): fondo blanco con el icono de la app -->
+        <item name="android:windowSplashScreenBackground">#FFFFFF</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
     </style>
 </resources>

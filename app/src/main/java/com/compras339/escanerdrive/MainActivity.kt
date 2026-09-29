@@ -97,6 +97,7 @@ class MainActivity : AppCompatActivity() {
     // ---------- Vistas ----------
     private lateinit var tvStatus: TextView
     private lateinit var btnSignIn: Button
+    private lateinit var btnGallery: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var sedeButtons: Map<Sede, Button>
 
@@ -163,6 +164,7 @@ class MainActivity : AppCompatActivity() {
 
         tvStatus = findViewById(R.id.tvStatus)
         btnSignIn = findViewById(R.id.btnSignIn)
+        btnGallery = findViewById(R.id.btnGallery)
         progressBar = findViewById(R.id.progressBar)
         sedeButtons = mapOf(
             Sede.CP to findViewById<Button>(R.id.btnScanCp),
@@ -178,6 +180,9 @@ class MainActivity : AppCompatActivity() {
         }
         sedeButtons.forEach { (sede, button) ->
             button.setOnClickListener { startScanner(sede) }
+        }
+        btnGallery.setOnClickListener {
+            startActivity(Intent(this, GalleryActivity::class.java))
         }
     }
 
@@ -310,6 +315,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applySedeButtons() {
         val signedIn = currentAccount != null
+        btnGallery.isEnabled = signedIn
         sedeButtons.forEach { (sede, button) ->
             button.isEnabled = signedIn && sede in allowedSedes
         }
@@ -449,7 +455,7 @@ class MainActivity : AppCompatActivity() {
     private fun showLoading(loading: Boolean) {
         progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         btnSignIn.isEnabled = !loading
+        btnGallery.isEnabled = !loading && currentAccount != null
         if (loading) sedeButtons.values.forEach { it.isEnabled = false } else applySedeButtons()
     }
 }
-
