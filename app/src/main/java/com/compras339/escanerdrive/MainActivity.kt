@@ -73,8 +73,8 @@ class MainActivity : AppCompatActivity() {
         /** Carpeta de Google Drive "CIERRE DE CAJA APK" para los soportes de cierre. */
         const val FOLDER_ID_CIERRE = "AQUI_ID_CARPETA_CIERRE"
 
-        /** Carpeta raíz de Google Drive "Gastos" (dentro se crean Año/Mes/Marca/Sede/Condición). */
-        const val FOLDER_ID_GASTOS = "AQUI_ID_CARPETA_GASTOS"
+        /** Subcarpeta de Gastos dentro de la carpeta de facturas; dentro se crea una carpeta por día. */
+        const val GASTOS_SUBFOLDER = "GASTOS OPERATIVOS"
 
         /** Usuario maestro: siempre tiene todas las sedes de todas las marcas. */
         const val MASTER_EMAIL = "compras@grupoalimentos4.com"
@@ -142,6 +142,10 @@ class MainActivity : AppCompatActivity() {
     private var selectedIsCierre = false
     private var pendingUploadUri: Uri? = null
     private var lastPermissionsLoadAt = 0L
+    /** Tras iniciar sesión, si el usuario es "solo Gastos" abrimos esa pantalla automáticamente una vez. */
+    private var autoOpenGastos = false
+    /** true mientras la pantalla de espera está visible (para no pisar su barra de estado). */
+    private var welcomeShowing = false
     private val isBusy get() = progressBar.visibility == View.VISIBLE
 
     // ---------- Launchers ----------
@@ -280,6 +284,7 @@ class MainActivity : AppCompatActivity() {
     private fun onSignedIn(account: GoogleSignInAccount) {
         currentAccount = account
         btnSignIn.text = "Cerrar sesión (${account.email ?: "cuenta"})"
+        autoOpenGastos = true
         showWelcome(loading = true)
         loadPermissions(account)
     }
@@ -325,12 +330,26 @@ class MainActivity : AppCompatActivity() {
             btnCierre.visibility = if (currentBrand != Brands.MIXED && sedes.isNotEmpty()) View.VISIBLE else View.GONE
             // Gastos: solo para quien tenga el módulo en la columna "Módulos" (compras@ siempre)
             btnGastos.visibility = if (Brands.MODULE_GASTOS in allowedModules && sedes.isNotEmpty()) View.VISIBLE else View.GONE
+
+            // Usuario "SOLO GASTOS": sin escaneo, cierre ni galería; se abre Gastos directamente
+            val soloGastos = Brands.MODULE_SOLO_GASTOS in allowedModules && sedes.isNotEmpty()
+            if (soloGastos) {
+                scrollSedes.visibility = View.GONE
+                btnCierre.visibility = View.GONE
+                btnGallery.visibility = View.GONE
+            }
             showLoading(false)
             showContent()
+            if (soloGastos) {
+                setStatus("Acceso a Gastos. Usa el botón «Gastos →» para registrar un soporte.")
+                if (autoOpenGastos) btnGastos.performClick()
+            }
+            autoOpenGastos = false
 
             when {
                 error != null -> setStatus("No se pudieron cargar los permisos:\n$error\n\nMantén pulsado el botón de cuenta para reintentar.")
                 sedes.isEmpty() -> setStatus("Esta cuenta no tiene ninguna sede asignada.\nContacta al administrador.")
+                soloGastos -> Unit     // conserva el mensaje de acceso a Gastos
                 else -> hideStatus()   // en reposo no mostramos nada: el correo ya se ve en el botón de cuenta
             }
         }
@@ -414,9 +433,7 @@ class MainActivity : AppCompatActivity() {
             ivBackground.setImageDrawable(null)
             ivBackground.visibility = View.GONE
         }
-        if (!::welcomeLayout.isInitialized || welcomeLayout.visibility != View.VISIBLE) {
-            window.statusBarColor = brand.statusBarColor
-        }
+        if (!welcomeShowing) window.statusBarColor = brand.statusBarColor
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
 
         tvTitle.setTextColor(brand.headerColor ?: brand.primaryColor)
@@ -575,6 +592,7 @@ class MainActivity : AppCompatActivity() {
      * @param error mensaje opcional (p. ej. fallo de inicio de sesión).
      */
     private fun showWelcome(loading: Boolean, error: String? = null) {
+        welcomeShowing = true
         welcomeLayout.visibility = View.VISIBLE
         contentLayout.visibility = View.GONE
         window.statusBarColor = WELCOME_BG
@@ -601,6 +619,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showContent() {
+        welcomeShowing = false
         stopWelcomeAnimations()
         welcomeLayout.visibility = View.GONE
         contentLayout.visibility = View.VISIBLE
@@ -785,4 +804,6 @@ class MainActivity : AppCompatActivity() {
             applySedeButtons()
         }
     }
+}
+
 }
