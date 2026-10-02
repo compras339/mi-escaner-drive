@@ -44,6 +44,14 @@
         </activity>
 
         <activity
+            android:name=".GastosActivity"
+            android:exported="false"
+            android:label="Gastos"
+            android:parentActivityName=".MainActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".GalleryActivity"
             android:exported="false"
             android:label="Mis escaneos"

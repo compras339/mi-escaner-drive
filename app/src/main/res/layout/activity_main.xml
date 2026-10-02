@@ -27,11 +27,37 @@
     android:paddingEnd="24dp"
     android:paddingBottom="12dp">
 
+    <!-- Píldora de acceso a Gastos (solo con el módulo GASTOS) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnGastos"
+        android:layout_width="wrap_content"
+        android:layout_height="34dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="10dp"
+        android:text="Gastos"
+        android:textAllCaps="false"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:cornerRadius="17dp"
+        app:icon="@drawable/ic_arrow_forward"
+        app:iconGravity="end"
+        app:iconPadding="4dp"
+        app:iconSize="18dp"
+        app:layout_constraintBottom_toBottomOf="@id/tvTitle"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/tvTitle"
+        tools:ignore="HardcodedText"
+        tools:visibility="visible" />
+
     <!-- Título (se ajusta al ancho en una sola línea) -->
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="0dp"
         android:layout_height="40dp"
+        android:layout_marginEnd="8dp"
         android:gravity="center"
         android:maxLines="1"
         android:text="Escáner de Compras"
@@ -39,7 +65,7 @@
         app:autoSizeMaxTextSize="28sp"
         app:autoSizeMinTextSize="14sp"
         app:autoSizeTextType="uniform"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btnGastos"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />

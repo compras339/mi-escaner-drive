@@ -10,7 +10,8 @@ import android.graphics.Color
 data class Sede(
     val key: String,
     val label: String,
-    val aliases: Set<String>
+    val aliases: Set<String>,
+    val short: String = label   // nombre corto sin marca (para Gastos: "Sambil", "La Granja", "CP"...)
 ) {
     fun matches(normalizedToken: String): Boolean = normalizedToken in aliases
 }
@@ -37,7 +38,8 @@ data class BrandTheme(
     val disabledBg: Int = Color.parseColor("#E0DDE3"),   // botón de sede sin permiso
     val disabledText: Int = Color.parseColor("#9E9E9E"),
     val cardColor: Int? = null,              // fondo de la tarjeta por marca en la vista mixta (null = sin tarjeta)
-    val headerColor: Int? = null             // color del nombre de marca en la vista mixta (null = textColor)
+    val headerColor: Int? = null,            // color del nombre de marca en la vista mixta (null = textColor)
+    val tag: String = ""                     // etiqueta corta para nombres de archivo de Gastos (AE, VESUVIO...)
 )
 
 object Brands {
@@ -55,9 +57,10 @@ object Brands {
         textColor = c("#1C1B1F"),
         logoRes = R.drawable.logo_alimentos,
         sedes = listOf(
-            Sede("CP", "CP", setOf("cp"))
+            Sede("CP", "CP", setOf("cp"), short = "CP")
         ),
-        aliases = setOf("alimentos", "alimentosexpress", "ae")
+        aliases = setOf("alimentos", "alimentosexpress", "ae"),
+        tag = "AE"
     )
 
     val TRINCHERO = BrandTheme(
@@ -71,14 +74,15 @@ object Brands {
         textColor = c("#3A1A14"),
         logoRes = R.drawable.logo_trinchero,
         sedes = listOf(
-            Sede("TFBEventos", "TFB EVENTOS", setOf("tfbeventos", "eventos")),
-            Sede("TFBGuataparo", "TFB GUATAPARO", setOf("tfbguataparo", "guataparo")),
-            Sede("TFBLaGranja", "TFB LA GRANJA", setOf("tfblagranja", "lagranja", "granja")),
-            Sede("TFBLaVina", "TFB LA VIÑA", setOf("tfblavina", "lavina")),
-            Sede("TFBManongo", "TFB MAÑONGO", setOf("tfbmanongo", "manongo")),
-            Sede("TFBSambil", "TFB SAMBIL", setOf("tfbsambil"))
+            Sede("TFBEventos", "TFB EVENTOS", setOf("tfbeventos", "eventos"), short = "Eventos"),
+            Sede("TFBGuataparo", "TFB GUATAPARO", setOf("tfbguataparo", "guataparo"), short = "Guataparo"),
+            Sede("TFBLaGranja", "TFB LA GRANJA", setOf("tfblagranja", "lagranja", "granja"), short = "La Granja"),
+            Sede("TFBLaVina", "TFB LA VIÑA", setOf("tfblavina", "lavina"), short = "La Viña"),
+            Sede("TFBManongo", "TFB MAÑONGO", setOf("tfbmanongo", "manongo"), short = "Mañongo"),
+            Sede("TFBSambil", "TFB SAMBIL", setOf("tfbsambil"), short = "Sambil")
         ),
-        aliases = setOf("tfb", "trinchero")
+        aliases = setOf("tfb", "trinchero"),
+        tag = "TRINCHERO"
     )
 
     val PILAR = BrandTheme(
@@ -92,14 +96,15 @@ object Brands {
         textColor = c("#F3EADB"),         // crema
         logoRes = R.drawable.logo_pilar,
         sedes = listOf(
-            Sede("Pilar", "PILAR Y JUANITO", setOf("pilar", "pilaryjuanito"))
+            Sede("Pilar", "PILAR Y JUANITO", setOf("pilar", "pilaryjuanito"), short = "Pilar y Juanito")
         ),
         aliases = setOf("pilaryjuanito", "asador"),
         backgroundRes = R.drawable.bg_brasas,
         backgroundOverlay = c("#A614100C"),   // ~65% de velo oscuro sobre las brasas
         statusBarColor = c("#0E0B08"),
         disabledBg = c("#3A332C"),
-        disabledText = c("#8A8077")
+        disabledText = c("#8A8077"),
+        tag = "PILARYJUANITO"
     )
 
     val VESUVIO = BrandTheme(
@@ -113,15 +118,16 @@ object Brands {
         textColor = c("#E6F2FA"),
         logoRes = R.drawable.logo_vesuvio,
         sedes = listOf(
-            Sede("VVinedo", "VESUVIO VIÑEDO", setOf("vvinedo", "vinedo", "vvinedos", "vinedos", "vesuviovinedo")),
-            Sede("VSambil", "VESUVIO SAMBIL", setOf("vsambil", "sambil", "vesuviosambil"))
+            Sede("VVinedo", "VESUVIO VIÑEDO", setOf("vvinedo", "vinedo", "vvinedos", "vinedos", "vesuviovinedo"), short = "Viñedo"),
+            Sede("VSambil", "VESUVIO SAMBIL", setOf("vsambil", "sambil", "vesuviosambil"), short = "Sambil")
         ),
         aliases = setOf("vesuvio", "pizzeria"),
         backgroundRes = R.drawable.bg_pizza,
         backgroundOverlay = c("#B80E1620"),   // ~72% de velo azul oscuro sobre la foto
         statusBarColor = c("#0A111A"),
         disabledBg = c("#2A3A4A"),
-        disabledText = c("#7A8A99")
+        disabledText = c("#7A8A99"),
+        tag = "VESUVIO"
     )
 
     /**
@@ -180,6 +186,40 @@ object Brands {
         if (brand != MIXED) return brand.sedes
         return ALL.filter { b -> b.sedes.any { it in allowed } }.flatMap { it.sedes }
     }
+
+    // ---------- Módulos (columna "Módulos" de la hoja de permisos) ----------
+    const val MODULE_GASTOS = "GASTOS"
+    const val MODULE_CIERRE = "CIERRE"
+    val ALL_MODULES = setOf(MODULE_GASTOS, MODULE_CIERRE)
+
+    /** Traduce una palabra de la hoja (ya normalizada) a módulos; vacío si no es un módulo. */
+    fun modulesFromToken(normalizedToken: String): Set<String> = when (normalizedToken) {
+        "gastos", "gasto" -> setOf(MODULE_GASTOS)
+        "cierre", "cierres", "cierredecaja" -> setOf(MODULE_CIERRE)
+        "todos" -> ALL_MODULES
+        else -> emptySet()
+    }
+
+    /** Etiqueta de sede para nombres de archivo de Gastos: AE-CP, VESUVIO-SAMBIL, PILARYJUANITO... */
+    fun gastoTag(sede: Sede): String {
+        val brand = brandOf(sede)
+        val solo = sede.short.equals(brand.name, ignoreCase = true)
+        return if (solo) brand.tag else brand.tag + "-" + slug(sede.short)
+    }
+
+    /** Ruta de carpeta de Gastos para una sede: [Marca, Sede] o solo [Marca] si la marca tiene una única sede con su nombre. */
+    fun gastoFolder(sede: Sede): List<String> {
+        val brand = brandOf(sede)
+        val solo = sede.short.equals(brand.name, ignoreCase = true)
+        return if (solo) listOf(brand.name) else listOf(brand.name, sede.short)
+    }
+
+    /** MAYÚSCULAS sin acentos ni símbolos. */
+    fun slug(text: String): String =
+        java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}"), "")
+            .uppercase(java.util.Locale.ROOT)
+            .replace(Regex("[^A-Z0-9]"), "")
 
     /** Traduce una palabra de la hoja de permisos (ya normalizada) a sedes. */
     fun sedesFromToken(normalizedToken: String): List<Sede> {

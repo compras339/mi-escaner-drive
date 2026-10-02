@@ -76,6 +76,9 @@ class MainActivity : AppCompatActivity() {
         /** Carpeta de Google Drive "CIERRE DE CAJA APK" para los soportes de cierre. */
         const val FOLDER_ID_CIERRE = "AQUI_ID_CARPETA_CIERRE"
 
+        /** Carpeta raíz de Google Drive "Gastos" (dentro se crean Año/Mes/Marca/Sede/Condición). */
+        const val FOLDER_ID_GASTOS = "AQUI_ID_CARPETA_GASTOS"
+
         /** Usuario maestro: siempre tiene todas las sedes de todas las marcas. */
         const val MASTER_EMAIL = "compras@grupoalimentos4.com"
 
@@ -111,6 +114,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var layoutSedes: LinearLayout
     private lateinit var btnGallery: MaterialButton
     private lateinit var btnCierre: MaterialButton
+    private lateinit var btnGastos: MaterialButton
     private lateinit var btnSignIn: MaterialButton
     private lateinit var tvCredit: TextView
     private lateinit var contentLayout: ConstraintLayout
@@ -135,6 +139,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var googleSignInClient: GoogleSignInClient
     private var currentAccount: GoogleSignInAccount? = null
     private var allowedSedes: Set<Sede> = emptySet()
+    private var allowedModules: Set<String> = emptySet()
     private var visibleSedes: List<Sede> = emptyList()
     private var currentBrand: BrandTheme = Brands.DEFAULT
     private val sedeButtons = mutableMapOf<Sede, MaterialButton>()
@@ -200,6 +205,7 @@ class MainActivity : AppCompatActivity() {
         layoutSedes = findViewById(R.id.layoutSedes)
         btnGallery = findViewById(R.id.btnGallery)
         btnCierre = findViewById(R.id.btnCierre)
+        btnGastos = findViewById(R.id.btnGastos)
         btnSignIn = findViewById(R.id.btnSignIn)
         tvCredit = findViewById(R.id.tvCredit)
         contentLayout = findViewById(R.id.contentLayout)
@@ -215,6 +221,11 @@ class MainActivity : AppCompatActivity() {
         setupChefWebView()
         btnWelcomeSignIn.setOnClickListener { signIn() }
         btnCierre.setOnClickListener { onCierreClicked() }
+        btnGastos.setOnClickListener {
+            startActivity(Intent(this, GastosActivity::class.java).apply {
+                putStringArrayListExtra(GastosActivity.EXTRA_SEDE_KEYS, ArrayList(allowedSedes.map { it.key }))
+            })
+        }
 
         setupGoogleSignIn()
         applyTheme(Brands.DEFAULT)
@@ -240,7 +251,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         val last = GoogleSignIn.getLastSignedInAccount(this)
-        if (last != null && GoogleSignIn.hasPermissions(last, Scope(DriveScopes.DRIVE_FILE))) {
+        if (last != null && GoogleSignIn.hasPermissions(last, Scope(DriveScopes.DRIVE))) {
             when {
                 currentAccount?.email != last.email -> onSignedIn(last)
                 // Al volver a la app, refrescamos permisos si pasó más de 1 minuto y no hay una operación en curso
@@ -256,7 +267,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupGoogleSignIn() {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestScopes(Scope(DriveScopes.DRIVE_FILE))
+            .requestScopes(Scope(DriveScopes.DRIVE))   // acceso completo: necesario para buscar/crear carpetas compartidas
             .build()
         googleSignInClient = GoogleSignIn.getClient(this, gso)
     }
@@ -289,6 +300,8 @@ class MainActivity : AppCompatActivity() {
         scrollSedes.visibility = View.GONE
         btnGallery.visibility = View.GONE
         btnCierre.visibility = View.GONE
+        btnGastos.visibility = View.GONE
+        allowedModules = emptySet()
         hideStatus()
         showWelcome(loading = false)
     }
@@ -301,9 +314,12 @@ class MainActivity : AppCompatActivity() {
         setStatus("Cargando permisos...")
 
         lifecycleScope.launch {
-            val (sedes, error) = withContext(Dispatchers.IO) { fetchAllowedSedes(email) }
+            val permisos = withContext(Dispatchers.IO) { fetchPermisos(email) }
+            val sedes = permisos.sedes
+            val error = permisos.error
             lastPermissionsLoadAt = System.currentTimeMillis()
             allowedSedes = sedes
+            allowedModules = permisos.modules
             currentBrand = Brands.resolveTheme(sedes)
             visibleSedes = Brands.visibleSedes(sedes, currentBrand)
 
@@ -313,6 +329,8 @@ class MainActivity : AppCompatActivity() {
             btnGallery.visibility = View.VISIBLE
             // Cierre de caja: solo en vistas de una marca y con al menos una sede permitida
             btnCierre.visibility = if (currentBrand != Brands.MIXED && sedes.isNotEmpty()) View.VISIBLE else View.GONE
+            // Gastos: solo para quien tenga el módulo en la columna "Módulos" (compras@ siempre)
+            btnGastos.visibility = if (Brands.MODULE_GASTOS in allowedModules && sedes.isNotEmpty()) View.VISIBLE else View.GONE
             showLoading(false)
             showContent()
 
@@ -324,14 +342,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun fetchAllowedSedes(email: String): Pair<Set<Sede>, String?> {
-        if (email == MASTER_EMAIL.lowercase(Locale.ROOT)) return Brands.allSedes().toSet() to null
-        if (PERMISSIONS_CSV_URL.startsWith("AQUI_")) return emptySet<Sede>() to "Falta configurar PERMISSIONS_CSV_URL"
+    data class Permisos(val sedes: Set<Sede>, val modules: Set<String>, val error: String?)
+
+    private fun fetchPermisos(email: String): Permisos {
+        if (email == MASTER_EMAIL.lowercase(Locale.ROOT)) return Permisos(Brands.allSedes().toSet(), Brands.ALL_MODULES, null)
+        if (PERMISSIONS_CSV_URL.startsWith("AQUI_")) return Permisos(emptySet(), emptySet(), "Falta configurar PERMISSIONS_CSV_URL")
         return try {
-            parsePermissions(downloadText(PERMISSIONS_CSV_URL), email) to null
+            val (sedes, modules) = parsePermissions(downloadText(PERMISSIONS_CSV_URL), email)
+            Permisos(sedes, modules, null)
         } catch (e: Exception) {
             Log.e(TAG, "Error al descargar permisos", e)
-            emptySet<Sede>() to (e.localizedMessage ?: "error de red")
+            Permisos(emptySet(), emptySet(), e.localizedMessage ?: "error de red")
         }
     }
 
@@ -360,8 +381,13 @@ class MainActivity : AppCompatActivity() {
         return conn.inputStream.bufferedReader().use { it.readText() }
     }
 
-    private fun parsePermissions(csv: String, email: String): Set<Sede> {
-        val result = mutableSetOf<Sede>()
+    /**
+     * Lee la fila del correo. Columna B = sedes, columna C = módulos (GASTOS, CIERRE, TODOS).
+     * Las palabras se reconocen en cualquiera de las dos columnas.
+     */
+    private fun parsePermissions(csv: String, email: String): Pair<Set<Sede>, Set<String>> {
+        val sedes = mutableSetOf<Sede>()
+        val modules = mutableSetOf<String>()
         csv.lineSequence().forEach { rawLine ->
             val line = rawLine.trim().trim('"')
             if (line.isEmpty()) return@forEach
@@ -372,9 +398,12 @@ class MainActivity : AppCompatActivity() {
                 .flatMap { it.split(';', '|') }
                 .map { normalize(it) }
                 .filter { it.isNotEmpty() }
-                .forEach { token -> result.addAll(Brands.sedesFromToken(token)) }
+                .forEach { token ->
+                    sedes.addAll(Brands.sedesFromToken(token))
+                    modules.addAll(Brands.modulesFromToken(token))
+                }
         }
-        return result
+        return sedes to modules
     }
 
     /** Aplica colores y logo de la marca a toda la pantalla. */
@@ -419,6 +448,11 @@ class MainActivity : AppCompatActivity() {
         btnCierre.setTextColor(stateList(brand.onPrimaryColor, brand.disabledText))
         btnCierre.iconTint = stateList(brand.onPrimaryColor, brand.disabledText)
         btnCierre.rippleColor = ColorStateList.valueOf(brand.tonalColor)
+
+        // Píldora "Gastos →": ámbar sobre fondo oscuro en la vista mixta; color de marca en las demás
+        btnGastos.backgroundTintList = ColorStateList.valueOf(accent)
+        btnGastos.setTextColor(if (brand.headerColor != null) brand.backgroundColor else brand.onPrimaryColor)
+        btnGastos.iconTint = ColorStateList.valueOf(if (brand.headerColor != null) brand.backgroundColor else brand.onPrimaryColor)
         btnSignIn.rippleColor = ColorStateList.valueOf(brand.tonalColor)
 
         sedeButtons.values.forEach { styleSedeButton(it, brand) }
@@ -698,7 +732,7 @@ class MainActivity : AppCompatActivity() {
     @Throws(IOException::class)
     private fun performUpload(account: GoogleSignInAccount, sede: Sede, imageUri: Uri, cierre: Boolean): String {
         val credential = GoogleAccountCredential
-            .usingOAuth2(this, listOf(DriveScopes.DRIVE_FILE))
+            .usingOAuth2(this, listOf(DriveScopes.DRIVE))
             .apply { selectedAccount = account.account }
         val driveService = Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
             .setApplicationName(APP_NAME)

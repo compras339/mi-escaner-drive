@@ -147,9 +147,9 @@ class GalleryActivity : AppCompatActivity() {
     }
 
     private fun buildDrive(account: GoogleSignInAccount): Drive {
-        // El maestro necesita drive.readonly para ver archivos subidos por otras cuentas.
-        val scopes = if (isMaster) listOf(DriveScopes.DRIVE_FILE, DriveScopes.DRIVE_READONLY)
-                     else listOf(DriveScopes.DRIVE_FILE)
+        // La app usa el permiso completo de Drive (necesario para carpetas compartidas de Gastos);
+        // con él el maestro ve lo de todos y los demás solo lo suyo (filtrado por nombre de archivo).
+        val scopes = listOf(DriveScopes.DRIVE)
         val credential = GoogleAccountCredential
             .usingOAuth2(this, scopes)
             .apply { selectedAccount = account.account }
@@ -200,8 +200,15 @@ class GalleryActivity : AppCompatActivity() {
         tvEmpty.visibility = if (items.isEmpty() && progress.visibility != View.VISIBLE) View.VISIBLE else View.GONE
     }
 
+    /** Prefijo de usuario tal como se escribe en los nombres de archivo: parte del correo antes de la @. */
+    private fun userPrefix(): String {
+        val email = GoogleSignIn.getLastSignedInAccount(this)?.email ?: return ""
+        return email.substringBefore("@").replace(Regex("[^A-Za-z0-9._-]"), "_")
+    }
+
     private fun listImages(drive: Drive): List<DriveImage> {
         val result = mutableListOf<DriveImage>()
+        val onlyMine = if (isMaster) null else "_" + userPrefix() + "_" 
         var pageToken: String? = null
         do {
             val response = drive.files().list()
@@ -212,6 +219,9 @@ class GalleryActivity : AppCompatActivity() {
                 .setPageToken(pageToken)
                 .execute()
             response.files?.forEach { f ->
+                // Con el permiso completo de Drive se listan los archivos de todos; los usuarios
+                // normales solo ven los suyos (su correo forma parte del nombre del archivo).
+                if (onlyMine != null && !(f.name ?: "").contains(onlyMine, ignoreCase = true)) return@forEach
                 result.add(
                     DriveImage(
                         id = f.id,

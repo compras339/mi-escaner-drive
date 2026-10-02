@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#16212E"
+    tools:context=".GastosActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Cabecera -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/btnBack"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="-10dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Volver"
+                    android:src="?attr/homeAsUpIndicator"
+                    app:tint="#F4F1EA"
+                    tools:ignore="HardcodedText" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/tvDate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_chip"
+                    android:paddingStart="12dp"
+                    android:paddingTop="6dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="6dp"
+                    android:textColor="#B7C2CE"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    tools:text="02 Oct 2026" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="cursive"
+                android:text="Gastos"
+                android:textColor="#F5A524"
+                android:textSize="54sp"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Clasifica el soporte y escanéalo."
+                android:textColor="#9FB0C2"
+                android:textSize="13sp"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <!-- Formulario -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="20dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="24dp">
+
+                <!-- 1 · Sede -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/GastosLabel"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="1 · SEDE"
+                        tools:ignore="HardcodedText" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:background="@drawable/bg_chip"
+                        android:orientation="horizontal"
+                        android:padding="3dp">
+
+                        <TextView
+                            android:id="@+id/segUna"
+                            style="@style/GastosSeg"
+                            android:text="Una sede"
+                            tools:ignore="HardcodedText" />
+
+                        <TextView
+                            android:id="@+id/segMixto"
+                            style="@style/GastosSeg"
+                            android:text="Mixto"
+                            tools:ignore="HardcodedText" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Grupos de sedes por marca (se generan en código) -->
+                <LinearLayout
+                    android:id="@+id/layoutGroups"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="vertical" />
+
+                <TextView
+                    android:id="@+id/tvMixNote"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Toca todas las sedes que aparecen en el soporte y asigna el monto de cada una."
+                    android:textColor="#9FB0C2"
+                    android:textSize="12sp"
+                    android:visibility="gone"
+                    tools:ignore="HardcodedText" />
+
+                <!-- Montos por sede (mixto) -->
+                <LinearLayout
+                    android:id="@+id/cardAmounts"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_card"
+                    android:orientation="vertical"
+                    android:padding="12dp"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:id="@+id/layoutAmounts"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="8dp"
+                        android:background="#2E4057" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            style="@style/GastosLabel"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:text="TOTAL"
+                            tools:ignore="HardcodedText" />
+
+                        <TextView
+                            android:id="@+id/tvTotal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="#F5A524"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            tools:text="$ 200,00" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- 2 · Condición -->
+                <TextView
+                    style="@style/GastosLabel"
+                    android:layout_marginTop="22dp"
+                    android:text="2 · CONDICIÓN"
+                    tools:ignore="HardcodedText" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/chipContado"
+                        style="@style/GastosChipBig"
+                        android:layout_marginEnd="4dp"
+                        android:text="Contado"
+                        tools:ignore="HardcodedText" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/chipCredito"
+                        style="@style/GastosChipBig"
+                        android:layout_marginStart="4dp"
+                        android:text="Crédito"
+                        tools:ignore="HardcodedText" />
+                </LinearLayout>
+
+                <!-- Días de crédito -->
+                <LinearLayout
+                    android:id="@+id/cardDays"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_card"
+                    android:orientation="vertical"
+                    android:padding="12dp"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Días de crédito"
+                            android:textColor="#F4F1EA"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            tools:ignore="HardcodedText" />
+
+                        <EditText
+                            android:id="@+id/etDays"
+                            android:layout_width="110dp"
+                            android:layout_height="44dp"
+                            android:background="@drawable/bg_field"
+                            android:gravity="center"
+                            android:hint="0"
+                            android:importantForAutofill="no"
+                            android:inputType="number"
+                            android:maxLength="3"
+                            android:textColor="#F4F1EA"
+                            android:textColorHint="#5F6E7E"
+                            android:textSize="16sp"
+                            tools:ignore="HardcodedText" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layoutDayShortcuts"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal" />
+                </LinearLayout>
+
+                <!-- 3 · Moneda -->
+                <TextView
+                    style="@style/GastosLabel"
+                    android:layout_marginTop="22dp"
+                    android:text="3 · MONEDA DEL SOPORTE"
+                    tools:ignore="HardcodedText" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/chipBs"
+                        style="@style/GastosChipBig"
+                        android:layout_marginEnd="4dp"
+                        android:text="Bs"
+                        tools:ignore="HardcodedText" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/chipUsd"
+                        style="@style/GastosChipBig"
+                        android:layout_marginStart="4dp"
+                        android:text="Dólares"
+                        tools:ignore="HardcodedText" />
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- Pie fijo -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#16212E"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="14dp">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="56dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnScan"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:backgroundTint="@color/gastos_scan_bg"
+                    android:enabled="false"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:letterSpacing="0.06"
+                    android:text="ESCANEAR SOPORTE"
+                    android:textColor="@color/gastos_scan_text"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="28dp"
+                    app:icon="@android:drawable/ic_menu_camera"
+                    app:iconGravity="textStart"
+                    app:iconPadding="10dp"
+                    app:iconTint="@color/gastos_scan_text"
+                    tools:ignore="HardcodedText" />
+
+                <com.compras339.escanerdrive.GlowBorderLayout
+                    android:id="@+id/btnProcessing"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:layout_gravity="center"
+                        android:gravity="center"
+                        android:orientation="horizontal">
+
+                        <ProgressBar
+                            style="?android:attr/progressBarStyleSmall"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:indeterminateTint="#FFFFFF" />
+
+                        <TextView
+                            android:id="@+id/tvProcessing"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:text="Clasificando y guardando…"
+                            android:textColor="#FFFFFF"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            tools:ignore="HardcodedText" />
+                    </LinearLayout>
+                </com.compras339.escanerdrive.GlowBorderLayout>
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/tvMissing"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="#9FB0C2"
+                android:textSize="12sp"
+                tools:text="Falta: elige una sede · condición · moneda" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
