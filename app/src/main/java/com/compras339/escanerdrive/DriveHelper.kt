@@ -25,7 +25,11 @@ object DriveHelper {
         var parent = rootId
         for (name in path) {
             val cacheKey = "$parent/$name"
-            folderCache[cacheKey]?.let { parent = it; continue }
+            val cached = folderCache[cacheKey]
+            if (cached != null) {
+                parent = cached
+                continue
+            }
 
             val safeName = name.replace("\\", "\\\\").replace("'", "\\'")
             val found = drive.files().list()
