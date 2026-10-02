@@ -208,24 +208,31 @@ class GalleryActivity : AppCompatActivity() {
 
     private fun listImages(drive: Drive): List<DriveImage> {
         val result = mutableListOf<DriveImage>()
-        val onlyMine = if (isMaster) null else "_" + userPrefix() + "_" 
+        val onlyMine = if (isMaster) null else "_" + userPrefix() + "_"
+        // Las fotos están en subcarpetas (Sede / DD-MM-AAAA), así que buscamos por nombre:
+        // todos los JPG cuyo nombre empiece por la clave de alguna sede visible.
+        val keys = filterSedes.map { it.key }
+        val nameFilter = keys.joinToString(" or ") { "name contains '${it}_'" }
         var pageToken: String? = null
         do {
             val response = drive.files().list()
-                .setQ("'${MainActivity.FOLDER_ID}' in parents and trashed = false and mimeType = 'image/jpeg'")
+                .setQ("mimeType = 'image/jpeg' and trashed = false and ($nameFilter)")
                 .setOrderBy("createdTime desc")
                 .setFields("nextPageToken, files(id, name, createdTime, webViewLink)")
-                .setPageSize(100)
+                .setPageSize(200)
                 .setPageToken(pageToken)
                 .execute()
             response.files?.forEach { f ->
+                val name = f.name ?: return@forEach
+                // Solo facturas: nombre que empieza exactamente por Sede_ (excluye CIERRE_ y GASTO_)
+                if (keys.none { name.startsWith(it + "_", ignoreCase = true) }) return@forEach
                 // Con el permiso completo de Drive se listan los archivos de todos; los usuarios
                 // normales solo ven los suyos (su correo forma parte del nombre del archivo).
-                if (onlyMine != null && !(f.name ?: "").contains(onlyMine, ignoreCase = true)) return@forEach
+                if (onlyMine != null && !name.contains(onlyMine, ignoreCase = true)) return@forEach
                 result.add(
                     DriveImage(
                         id = f.id,
-                        name = f.name ?: "",
+                        name = name,
                         createdMillis = f.createdTime?.value ?: 0L,
                         webViewLink = f.webViewLink
                     )

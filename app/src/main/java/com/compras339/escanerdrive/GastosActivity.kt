@@ -54,7 +54,6 @@ class GastosActivity : AppCompatActivity() {
         private const val TAG = "GastosActivity"
         const val EXTRA_SEDE_KEYS = "sede_keys"
         private const val MIME_JPEG = "image/jpeg"
-        private const val MIME_FOLDER = "application/vnd.google-apps.folder"
         private val MESES = listOf(
             "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
@@ -416,7 +415,7 @@ class GastosActivity : AppCompatActivity() {
                         .apply { selectedAccount = account.account }
                     val drive = Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
                         .setApplicationName("DocScanner").build()
-                    val parentId = ensureFolderPath(drive, MainActivity.FOLDER_ID_GASTOS, path)
+                    val parentId = DriveHelper.ensureFolderPath(drive, MainActivity.FOLDER_ID_GASTOS, path)
                     val metadata = DriveFile().apply { name = fileName; mimeType = MIME_JPEG; parents = listOf(parentId) }
                     val stream = contentResolver.openInputStream(uri) ?: throw IOException("No se pudo leer la imagen")
                     stream.use { drive.files().create(metadata, InputStreamContent(MIME_JPEG, it)).setFields("id, name").execute() }
@@ -434,24 +433,6 @@ class GastosActivity : AppCompatActivity() {
                     .show()
             }
         }
-    }
-
-    /** Busca (o crea) la cadena de carpetas bajo rootId y devuelve el id de la última. Llamar desde IO. */
-    private fun ensureFolderPath(drive: Drive, rootId: String, path: List<String>): String {
-        var parent = rootId
-        for (name in path) {
-            val safeName = name.replace("'", "\\'")
-            val found = drive.files().list()
-                .setQ("name = '$safeName' and mimeType = '$MIME_FOLDER' and '$parent' in parents and trashed = false")
-                .setFields("files(id, name)")
-                .setPageSize(5)
-                .execute().files
-            parent = if (!found.isNullOrEmpty()) found.first().id else {
-                val meta = DriveFile().apply { this.name = name; mimeType = MIME_FOLDER; parents = listOf(parent) }
-                drive.files().create(meta).setFields("id").execute().id
-            }
-        }
-        return parent
     }
 
     private fun showSaved(fileName: String, route: String) {

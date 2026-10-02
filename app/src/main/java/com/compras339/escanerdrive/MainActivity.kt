@@ -1,7 +1,5 @@
 package com.compras339.escanerdrive
 
-import android.animation.ObjectAnimator
-import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -18,7 +16,6 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
-import android.view.animation.AccelerateDecelerateInterpolator
 import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -124,13 +121,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webChef: WebView
     private lateinit var tvWelcomeHeadline: TextView
     private lateinit var tvWelcomeSubtitle: TextView
-    private lateinit var loadingBar: View
     private lateinit var btnWelcomeSignIn: MaterialButton
     private lateinit var btnWelcomeLoading: GlowBorderLayout
     private lateinit var tvWelcomeLoading: TextView
     private val uiHandler = Handler(Looper.getMainLooper())
     private var dotsRunnable: Runnable? = null
-    private var barAnimator: ObjectAnimator? = null
     private val WELCOME_BG = Color.parseColor("#16212E")
     private val WELCOME_ACCENT = Color.parseColor("#F5A524")
     private val WELCOME_SUBTLE = Color.parseColor("#B7C2CE")
@@ -214,7 +209,6 @@ class MainActivity : AppCompatActivity() {
         webChef = findViewById(R.id.webChef)
         tvWelcomeHeadline = findViewById(R.id.tvWelcomeHeadline)
         tvWelcomeSubtitle = findViewById(R.id.tvWelcomeSubtitle)
-        loadingBar = findViewById(R.id.loadingBar)
         btnWelcomeSignIn = findViewById(R.id.btnWelcomeSignIn)
         btnWelcomeLoading = findViewById(R.id.btnWelcomeLoading)
         tvWelcomeLoading = findViewById(R.id.tvWelcomeLoading)
@@ -629,23 +623,11 @@ class MainActivity : AppCompatActivity() {
             }
             uiHandler.post(dotsRunnable!!)
         }
-        // Barra de carga
-        if (barAnimator == null) {
-            val dp = resources.displayMetrics.density
-            barAnimator = ObjectAnimator.ofFloat(loadingBar, View.TRANSLATION_X, -56f * dp, 140f * dp).apply {
-                duration = 1600L
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = AccelerateDecelerateInterpolator()
-                start()
-            }
-        }
     }
 
     private fun stopWelcomeAnimations() {
         dotsRunnable?.let { uiHandler.removeCallbacks(it) }
         dotsRunnable = null
-        barAnimator?.cancel()
-        barAnimator = null
     }
 
     override fun onDestroy() {
@@ -741,11 +723,15 @@ class MainActivity : AppCompatActivity() {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val userPrefix = (account.email ?: "usuario").substringBefore("@").replace(Regex("[^A-Za-z0-9._-]"), "_")
 
+        // Estructura: {carpeta raíz} / {SEDE} / {DD-MM-AAAA} / archivo
+        val rootId = if (cierre) FOLDER_ID_CIERRE else FOLDER_ID
+        val parentId = DriveHelper.ensureFolderPath(driveService, rootId, listOf(sede.label, DriveHelper.todayFolderName()))
+
         val metadata = DriveFile().apply {
-            name = "${sede.key}_${userPrefix}_$timestamp.jpg"
+            // Facturas: Sede_usuario_fecha.jpg · Cierres: CIERRE_Sede_usuario_fecha.jpg (misma sede y usuario)
+            name = (if (cierre) "CIERRE_" else "") + "${sede.key}_${userPrefix}_$timestamp.jpg"
             mimeType = MIME_JPEG
-            // Los cierres de caja van a su propia carpeta; mismo patrón de nombre Sede_usuario_fecha
-            parents = listOf(if (cierre) FOLDER_ID_CIERRE else FOLDER_ID)
+            parents = listOf(parentId)
         }
         val inputStream = contentResolver.openInputStream(imageUri)
             ?: throw IOException("No se pudo abrir el archivo escaneado: $imageUri")

@@ -268,22 +268,6 @@
             android:textSize="14sp"
             tools:ignore="HardcodedText" />
 
-        <!-- Barra de carga -->
-        <FrameLayout
-            android:id="@+id/loadingTrack"
-            android:layout_width="140dp"
-            android:layout_height="4dp"
-            android:layout_marginTop="14dp"
-            android:background="@drawable/bg_loading_track"
-            android:clipChildren="true">
-
-            <View
-                android:id="@+id/loadingBar"
-                android:layout_width="56dp"
-                android:layout_height="4dp"
-                android:background="@drawable/bg_loading_bar" />
-        </FrameLayout>
-
         <!-- Botón normal / botón en estado "Iniciando sesión" (mismo tamaño, se alternan) -->
         <FrameLayout
             android:layout_width="match_parent"
