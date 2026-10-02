@@ -702,7 +702,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showContent() {
         whatsappMenu.visibility = View.GONE
-        whatsappFloat.visibility = View.VISIBLE
+        // La burbuja de WhatsApp es para las sedes; el maestro (vista mixta) no la necesita
+        whatsappFloat.visibility = if (currentBrand == Brands.MIXED) View.GONE else View.VISIBLE
         welcomeShowing = false
         stopWelcomeAnimations()
         welcomeLayout.visibility = View.GONE
