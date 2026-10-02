@@ -805,5 +805,3 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
-
-}
