@@ -72,6 +72,9 @@ class MainActivity : AppCompatActivity() {
         /** Carpeta de Google Drive donde se suben los escaneos. */
         const val FOLDER_ID = "1zD07AzUmTo9tvRnVUmpO2Dk7uJe65PkZ"
 
+        /** Botón "CIERRE DE CAJA": pon true para volver a mostrarlo cuando se defina su funcionamiento. */
+        const val CIERRE_ENABLED = false
+
         /** Carpeta de Google Drive "CIERRE DE CAJA APK" para los soportes de cierre. */
         const val FOLDER_ID_CIERRE = "AQUI_ID_CARPETA_CIERRE"
 
@@ -342,8 +345,9 @@ class MainActivity : AppCompatActivity() {
             buildSedeButtons()
             scrollSedes.visibility = View.VISIBLE
             btnGallery.visibility = View.VISIBLE
-            // Cierre de caja: solo en vistas de una marca y con al menos una sede permitida
-            btnCierre.visibility = if (currentBrand != Brands.MIXED && sedes.isNotEmpty()) View.VISIBLE else View.GONE
+            // Cierre de caja: solo en vistas de una marca y con al menos una sede permitida.
+            // Oculto temporalmente (CIERRE_ENABLED = false) hasta definir su funcionamiento.
+            btnCierre.visibility = if (CIERRE_ENABLED && currentBrand != Brands.MIXED && sedes.isNotEmpty()) View.VISIBLE else View.GONE
             // Gastos: solo para quien tenga el módulo en la columna "Módulos" (compras@ siempre)
             btnGastos.visibility = if (Brands.MODULE_GASTOS in allowedModules && sedes.isNotEmpty()) View.VISIBLE else View.GONE
 
