@@ -110,6 +110,8 @@ class MainActivity : AppCompatActivity() {
     private val sedeButtons = mutableMapOf<Sede, MaterialButton>()
     private var selectedSede: Sede? = null
     private var pendingUploadUri: Uri? = null
+    private var lastPermissionsLoadAt = 0L
+    private val isBusy get() = progressBar.visibility == View.VISIBLE
 
     // ---------- Launchers ----------
 
@@ -171,6 +173,14 @@ class MainActivity : AppCompatActivity() {
         applyTheme(Brands.DEFAULT)
 
         btnSignIn.setOnClickListener { if (currentAccount == null) signIn() else signOut() }
+        // Mantener pulsado el botón de cuenta vuelve a leer la hoja de permisos
+        btnSignIn.setOnLongClickListener {
+            val acc = currentAccount
+            if (acc != null && !isBusy) {
+                Toast.makeText(this, "Actualizando permisos...", Toast.LENGTH_SHORT).show()
+                loadPermissions(acc); true
+            } else false
+        }
         btnGallery.setOnClickListener {
             startActivity(Intent(this, GalleryActivity::class.java).apply {
                 putExtra(EXTRA_BRAND_ID, currentBrand.id)
@@ -183,7 +193,11 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         val last = GoogleSignIn.getLastSignedInAccount(this)
         if (last != null && GoogleSignIn.hasPermissions(last, Scope(DriveScopes.DRIVE_FILE))) {
-            if (currentAccount?.email != last.email) onSignedIn(last)
+            when {
+                currentAccount?.email != last.email -> onSignedIn(last)
+                // Al volver a la app, refrescamos permisos si pasó más de 1 minuto y no hay una operación en curso
+                !isBusy && System.currentTimeMillis() - lastPermissionsLoadAt > 60_000L -> loadPermissions(last)
+            }
         } else {
             onSignedOut()
         }
@@ -207,7 +221,6 @@ class MainActivity : AppCompatActivity() {
     private fun signOut() {
         googleSignInClient.signOut().addOnCompleteListener {
             onSignedOut()
-            setStatus("Sesión cerrada. Esperando inicio de sesión")
         }
     }
 
@@ -226,7 +239,7 @@ class MainActivity : AppCompatActivity() {
         buildSedeButtons()
         scrollSedes.visibility = View.GONE
         btnGallery.visibility = View.GONE
-        setStatus("Esperando inicio de sesión")
+        hideStatus()
     }
 
     // ---------- Permisos y tema ----------
@@ -234,10 +247,11 @@ class MainActivity : AppCompatActivity() {
     private fun loadPermissions(account: GoogleSignInAccount) {
         val email = account.email?.trim()?.lowercase(Locale.ROOT) ?: ""
         showLoading(true)
-        setStatus("Cuenta vinculada: $email\nCargando permisos...")
+        setStatus("Cargando permisos...")
 
         lifecycleScope.launch {
             val (sedes, error) = withContext(Dispatchers.IO) { fetchAllowedSedes(email) }
+            lastPermissionsLoadAt = System.currentTimeMillis()
             allowedSedes = sedes
             currentBrand = Brands.resolveTheme(sedes)
             visibleSedes = Brands.visibleSedes(sedes, currentBrand)
@@ -248,14 +262,11 @@ class MainActivity : AppCompatActivity() {
             btnGallery.visibility = View.VISIBLE
             showLoading(false)
 
-            val nombres = visibleSedes.filter { it in sedes }.joinToString(", ") { it.label }
-            setStatus(
-                when {
-                    error != null -> "Cuenta vinculada: $email\n\nNo se pudieron cargar los permisos:\n$error"
-                    sedes.isEmpty() -> "Cuenta vinculada: $email\n\nEsta cuenta no tiene ninguna sede asignada.\nContacta al administrador."
-                    else -> "Cuenta vinculada: $email\nSedes habilitadas: $nombres"
-                }
-            )
+            when {
+                error != null -> setStatus("No se pudieron cargar los permisos:\n$error\n\nMantén pulsado el botón de cuenta para reintentar.")
+                sedes.isEmpty() -> setStatus("Esta cuenta no tiene ninguna sede asignada.\nContacta al administrador.")
+                else -> hideStatus()   // en reposo no mostramos nada: el correo ya se ve en el botón de cuenta
+            }
         }
     }
 
@@ -270,9 +281,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun downloadText(url: String): String {
+    private fun downloadText(baseUrl: String): String {
+        // Parámetro variable para evitar cachés intermedias (Google sigue cacheando ~5 min de su lado)
+        val url = baseUrl + (if ('?' in baseUrl) "&" else "?") + "t=" + System.currentTimeMillis()
         var conn = URL(url).openConnection() as HttpURLConnection
         conn.instanceFollowRedirects = true
+        conn.useCaches = false
+        conn.setRequestProperty("Cache-Control", "no-cache")
+        conn.setRequestProperty("Pragma", "no-cache")
         conn.connectTimeout = 15000
         conn.readTimeout = 15000
         var redirects = 0
@@ -280,6 +296,8 @@ class MainActivity : AppCompatActivity() {
             val location = conn.getHeaderField("Location") ?: break
             conn.disconnect()
             conn = URL(location).openConnection() as HttpURLConnection
+            conn.useCaches = false
+            conn.setRequestProperty("Cache-Control", "no-cache")
             conn.connectTimeout = 15000
             conn.readTimeout = 15000
             redirects++
@@ -381,7 +399,9 @@ class MainActivity : AppCompatActivity() {
                 rowSedes.forEach { sede ->
                     val btn = MaterialButton(this).apply {
                         // Con encabezado de marca quitamos el prefijo "TFB " para que el botón respire
-                        text = if (compact && showHeaders) sede.label.removePrefix("TFB ").trim() else sede.label
+                        text = if (compact && showHeaders)
+                            sede.label.removePrefix("TFB ").removePrefix("VESUVIO ").trim()
+                        else sede.label
                         isAllCaps = false
                         maxLines = 2
                         gravity = Gravity.CENTER
@@ -529,7 +549,15 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Utilidades de UI ----------
 
-    private fun setStatus(message: String) { tvStatus.text = message }
+    private fun setStatus(message: String) {
+        tvStatus.text = message
+        tvStatus.visibility = View.VISIBLE
+    }
+
+    private fun hideStatus() {
+        tvStatus.text = ""
+        tvStatus.visibility = View.GONE
+    }
 
     private fun showLoading(loading: Boolean) {
         progressBar.visibility = if (loading) View.VISIBLE else View.GONE

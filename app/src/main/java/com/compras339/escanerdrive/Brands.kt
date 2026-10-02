@@ -90,7 +90,7 @@ object Brands {
         textColor = c("#F3EADB"),         // crema
         logoRes = R.drawable.logo_pilar,
         sedes = listOf(
-            Sede("Pilar", "Pilar y Juanito", setOf("pilar", "pilaryjuanito"))
+            Sede("Pilar", "PILAR Y JUANITO", setOf("pilar", "pilaryjuanito"))
         ),
         aliases = setOf("pilaryjuanito", "asador"),
         backgroundRes = R.drawable.bg_brasas,
@@ -111,8 +111,8 @@ object Brands {
         textColor = c("#E6F2FA"),
         logoRes = R.drawable.logo_vesuvio,
         sedes = listOf(
-            Sede("VVinedo", "V Viñedo", setOf("vvinedo", "vinedo", "vvinedos", "vinedos", "vesuviovinedo")),
-            Sede("VSambil", "V Sambil", setOf("vsambil", "sambil", "vesuviosambil"))
+            Sede("VVinedo", "VESUVIO VIÑEDO", setOf("vvinedo", "vinedo", "vvinedos", "vinedos", "vesuviovinedo")),
+            Sede("VSambil", "VESUVIO SAMBIL", setOf("vsambil", "sambil", "vesuviosambil"))
         ),
         aliases = setOf("vesuvio", "pizzeria"),
         backgroundRes = R.drawable.bg_pizza,
