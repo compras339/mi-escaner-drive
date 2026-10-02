@@ -2,19 +2,28 @@ package com.compras339.escanerdrive
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
-import android.widget.Button
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -22,6 +31,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
+import com.google.android.material.button.MaterialButton
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
 import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException
 import com.google.api.client.http.InputStreamContent
@@ -47,44 +57,30 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    /** Sedes disponibles. `key` es el prefijo que se usa en el nombre del archivo y en la hoja de permisos. */
-    enum class Sede(val key: String, val label: String) {
-        CP("CP", "CP"),
-        PILAR("Pilar", "Pilar"),
-        VINEDO("VVinedo", "V Viñedo"),
-        SAMBIL("VSambil", "V Sambil");
-
-        /** Alias aceptados en la hoja de permisos (sin acentos, sin espacios, en minúsculas). */
-        fun matches(text: String): Boolean {
-            val t = normalize(text)
-            return when (this) {
-                CP -> t == "cp"
-                PILAR -> t == "pilar"
-                VINEDO -> t == "vvinedo" || t == "vinedo" || t == "vvinedos"
-                SAMBIL -> t == "vsambil" || t == "sambil"
-            }
-        }
-    }
-
     companion object {
         private const val TAG = "MainActivity"
 
         /** Carpeta de Google Drive donde se suben los escaneos. */
         const val FOLDER_ID = "1zD07AzUmTo9tvRnVUmpO2Dk7uJe65PkZ"
 
-        /** Usuario maestro: siempre tiene las 4 sedes habilitadas. */
+        /** Usuario maestro: siempre tiene todas las sedes de todas las marcas. */
         const val MASTER_EMAIL = "compras@grupoalimentos4.com"
 
         /**
-         * URL CSV de la hoja de permisos publicada en la web (Archivo > Compartir > Publicar en la web > CSV).
-         * Formato de cada fila:  correo, sedes   (ej.  cajero.pilar@grupoalimentos4.com, Pilar )
-         * Varias sedes separadas por ; o |   (ej.  supervisor@grupoalimentos4.com, CP; Pilar )
-         * La palabra TODAS habilita las 4 sedes.
+         * URL CSV de la hoja "Permisos Escaner" publicada en la web.
+         * Fila: correo, sedes   (ej.  cajero@dominio.com, TFB La Granja; TFB Sambil )
+         * Palabras especiales: TODAS (todo) · TFB (todas las sedes Trinchero) · ALIMENTOS (todas las de Alimentos Express)
          */
         const val PERMISSIONS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGPpnlAyQAyE-FUhJsa341kNBukuTq3Wwhw4vHJJ17IJeoJO-1dIwsmfZsj_j3Tx_hDoh3YY9m3Ic-/pub?gid=0&single=true&output=csv"
 
+        const val EXTRA_BRAND_ID = "brand_id"
+        const val EXTRA_SEDE_KEYS = "sede_keys"
+
         private const val APP_NAME = "DocScanner"
         private const val MIME_JPEG = "image/jpeg"
+
+        private val DISABLED_BG = Color.parseColor("#E0DDE3")
+        private val DISABLED_TEXT = Color.parseColor("#9E9E9E")
 
         /** Quita acentos, espacios y símbolos; pasa a minúsculas. */
         fun normalize(s: String): String =
@@ -95,16 +91,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------- Vistas ----------
+    private lateinit var rootLayout: ConstraintLayout
+    private lateinit var tvTitle: TextView
+    private lateinit var ivLogo: ImageView
     private lateinit var tvStatus: TextView
-    private lateinit var btnSignIn: Button
-    private lateinit var btnGallery: Button
     private lateinit var progressBar: ProgressBar
-    private lateinit var sedeButtons: Map<Sede, Button>
+    private lateinit var scrollSedes: ScrollView
+    private lateinit var layoutSedes: LinearLayout
+    private lateinit var btnGallery: MaterialButton
+    private lateinit var btnSignIn: MaterialButton
+    private lateinit var tvCredit: TextView
 
     // ---------- Estado ----------
     private lateinit var googleSignInClient: GoogleSignInClient
     private var currentAccount: GoogleSignInAccount? = null
     private var allowedSedes: Set<Sede> = emptySet()
+    private var visibleSedes: List<Sede> = emptyList()
+    private var currentBrand: BrandTheme = Brands.DEFAULT
+    private val sedeButtons = mutableMapOf<Sede, MaterialButton>()
     private var selectedSede: Sede? = null
     private var pendingUploadUri: Uri? = null
 
@@ -114,15 +118,13 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             try {
-                val account = task.getResult(ApiException::class.java)
-                onSignedIn(account)
+                onSignedIn(task.getResult(ApiException::class.java))
             } catch (e: ApiException) {
                 Log.e(TAG, "Fallo en Google Sign-In. Código: ${e.statusCode}", e)
                 onSignedOut()
                 setStatus(
                     "Error al iniciar sesión (código ${e.statusCode})\n\n" +
-                        "Paquete: $packageName\n" +
-                        "SHA-1 de esta app:\n${getSigningSha1()}"
+                        "Paquete: $packageName\nSHA-1 de esta app:\n${getSigningSha1()}"
                 )
             }
         }
@@ -130,16 +132,12 @@ class MainActivity : AppCompatActivity() {
     private val scannerLauncher: ActivityResultLauncher<IntentSenderRequest> =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode != RESULT_OK) {
-                showLoading(false)
-                setStatus("Escaneo cancelado")
-                return@registerForActivityResult
+                showLoading(false); setStatus("Escaneo cancelado"); return@registerForActivityResult
             }
-            val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
-            val imageUri = scanResult?.pages?.firstOrNull()?.imageUri
+            val imageUri = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+                ?.pages?.firstOrNull()?.imageUri
             if (imageUri == null) {
-                showLoading(false)
-                setStatus("No se obtuvo ninguna imagen del escáner")
-                return@registerForActivityResult
+                showLoading(false); setStatus("No se obtuvo ninguna imagen del escáner"); return@registerForActivityResult
             }
             uploadToDrive(imageUri)
         }
@@ -148,12 +146,8 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val uri = pendingUploadUri
             pendingUploadUri = null
-            if (result.resultCode == RESULT_OK && uri != null) {
-                uploadToDrive(uri)
-            } else {
-                showLoading(false)
-                setStatus("Permiso de Drive denegado. No se pudo subir el archivo.")
-            }
+            if (result.resultCode == RESULT_OK && uri != null) uploadToDrive(uri)
+            else { showLoading(false); setStatus("Permiso de Drive denegado. No se pudo subir el archivo.") }
         }
 
     // ---------- Ciclo de vida ----------
@@ -162,37 +156,34 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        rootLayout = findViewById(R.id.rootLayout)
+        tvTitle = findViewById(R.id.tvTitle)
+        ivLogo = findViewById(R.id.ivLogo)
         tvStatus = findViewById(R.id.tvStatus)
-        btnSignIn = findViewById(R.id.btnSignIn)
-        btnGallery = findViewById(R.id.btnGallery)
         progressBar = findViewById(R.id.progressBar)
-        sedeButtons = mapOf(
-            Sede.CP to findViewById<Button>(R.id.btnScanCp),
-            Sede.PILAR to findViewById<Button>(R.id.btnScanPilar),
-            Sede.VINEDO to findViewById<Button>(R.id.btnScanVinedo),
-            Sede.SAMBIL to findViewById<Button>(R.id.btnScanSambil)
-        )
+        scrollSedes = findViewById(R.id.scrollSedes)
+        layoutSedes = findViewById(R.id.layoutSedes)
+        btnGallery = findViewById(R.id.btnGallery)
+        btnSignIn = findViewById(R.id.btnSignIn)
+        tvCredit = findViewById(R.id.tvCredit)
 
         setupGoogleSignIn()
+        applyTheme(Brands.DEFAULT)
 
-        btnSignIn.setOnClickListener {
-            if (currentAccount == null) signIn() else signOut()
-        }
-        sedeButtons.forEach { (sede, button) ->
-            button.setOnClickListener { startScanner(sede) }
-        }
+        btnSignIn.setOnClickListener { if (currentAccount == null) signIn() else signOut() }
         btnGallery.setOnClickListener {
-            startActivity(Intent(this, GalleryActivity::class.java))
+            startActivity(Intent(this, GalleryActivity::class.java).apply {
+                putExtra(EXTRA_BRAND_ID, currentBrand.id)
+                putStringArrayListExtra(EXTRA_SEDE_KEYS, ArrayList(visibleSedes.map { it.key }))
+            })
         }
     }
 
     override fun onStart() {
         super.onStart()
-        val lastAccount = GoogleSignIn.getLastSignedInAccount(this)
-        if (lastAccount != null &&
-            GoogleSignIn.hasPermissions(lastAccount, Scope(DriveScopes.DRIVE_FILE))
-        ) {
-            onSignedIn(lastAccount)
+        val last = GoogleSignIn.getLastSignedInAccount(this)
+        if (last != null && GoogleSignIn.hasPermissions(last, Scope(DriveScopes.DRIVE_FILE))) {
+            if (currentAccount?.email != last.email) onSignedIn(last)
         } else {
             onSignedOut()
         }
@@ -229,12 +220,16 @@ class MainActivity : AppCompatActivity() {
     private fun onSignedOut() {
         currentAccount = null
         allowedSedes = emptySet()
+        visibleSedes = emptyList()
         btnSignIn.text = "Vincular cuenta de Google"
-        applySedeButtons()
+        applyTheme(Brands.DEFAULT)
+        buildSedeButtons()
+        scrollSedes.visibility = View.GONE
+        btnGallery.visibility = View.GONE
         setStatus("Esperando inicio de sesión")
     }
 
-    // ---------- Permisos por sede ----------
+    // ---------- Permisos y tema ----------
 
     private fun loadPermissions(account: GoogleSignInAccount) {
         val email = account.email?.trim()?.lowercase(Locale.ROOT) ?: ""
@@ -244,29 +239,31 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val (sedes, error) = withContext(Dispatchers.IO) { fetchAllowedSedes(email) }
             allowedSedes = sedes
-            showLoading(false)
-            applySedeButtons()
+            currentBrand = Brands.resolveTheme(sedes)
+            visibleSedes = Brands.visibleSedes(sedes, currentBrand)
 
-            val nombres = sedes.sortedBy { it.ordinal }.joinToString(", ") { it.label }
+            applyTheme(currentBrand)
+            buildSedeButtons()
+            scrollSedes.visibility = View.VISIBLE
+            btnGallery.visibility = View.VISIBLE
+            showLoading(false)
+
+            val nombres = visibleSedes.filter { it in sedes }.joinToString(", ") { it.label }
             setStatus(
                 when {
                     error != null -> "Cuenta vinculada: $email\n\nNo se pudieron cargar los permisos:\n$error"
                     sedes.isEmpty() -> "Cuenta vinculada: $email\n\nEsta cuenta no tiene ninguna sede asignada.\nContacta al administrador."
-                    else -> "Cuenta vinculada: $email\nSedes habilitadas: $nombres\nListo para escanear"
+                    else -> "Cuenta vinculada: $email\nSedes habilitadas: $nombres"
                 }
             )
         }
     }
 
-    /** Devuelve las sedes permitidas y, si hubo problema de red, un mensaje de error. */
     private fun fetchAllowedSedes(email: String): Pair<Set<Sede>, String?> {
-        if (email == MASTER_EMAIL.lowercase(Locale.ROOT)) return Sede.values().toSet() to null
-        if (PERMISSIONS_CSV_URL.startsWith("AQUI_")) {
-            return emptySet<Sede>() to "Falta configurar PERMISSIONS_CSV_URL en la app"
-        }
+        if (email == MASTER_EMAIL.lowercase(Locale.ROOT)) return Brands.allSedes().toSet() to null
+        if (PERMISSIONS_CSV_URL.startsWith("AQUI_")) return emptySet<Sede>() to "Falta configurar PERMISSIONS_CSV_URL"
         return try {
-            val csv = downloadText(PERMISSIONS_CSV_URL)
-            parsePermissions(csv, email) to null
+            parsePermissions(downloadText(PERMISSIONS_CSV_URL), email) to null
         } catch (e: Exception) {
             Log.e(TAG, "Error al descargar permisos", e)
             emptySet<Sede>() to (e.localizedMessage ?: "error de red")
@@ -278,7 +275,6 @@ class MainActivity : AppCompatActivity() {
         conn.instanceFollowRedirects = true
         conn.connectTimeout = 15000
         conn.readTimeout = 15000
-        // Google publica el CSV con una redirección a otro dominio; la seguimos manualmente.
         var redirects = 0
         while (conn.responseCode in 300..399 && redirects < 5) {
             val location = conn.getHeaderField("Location") ?: break
@@ -292,10 +288,6 @@ class MainActivity : AppCompatActivity() {
         return conn.inputStream.bufferedReader().use { it.readText() }
     }
 
-    /**
-     * Busca la fila del correo en el CSV y devuelve las sedes.
-     * Acepta separadores , ; | entre sedes y la palabra TODAS.
-     */
     private fun parsePermissions(csv: String, email: String): Set<Sede> {
         val result = mutableSetOf<Sede>()
         csv.lineSequence().forEach { rawLine ->
@@ -304,47 +296,152 @@ class MainActivity : AppCompatActivity() {
             val cells = line.split(',').map { it.trim().trim('"') }
             val rowEmail = cells.firstOrNull()?.lowercase(Locale.ROOT) ?: return@forEach
             if (rowEmail != email) return@forEach
-            val tokens = cells.drop(1).flatMap { it.split(';', '|') }.map { it.trim() }.filter { it.isNotEmpty() }
-            tokens.forEach { token ->
-                if (normalize(token) == "todas") result.addAll(Sede.values())
-                else Sede.values().firstOrNull { it.matches(token) }?.let { result.add(it) }
-            }
+            cells.drop(1)
+                .flatMap { it.split(';', '|') }
+                .map { normalize(it) }
+                .filter { it.isNotEmpty() }
+                .forEach { token -> result.addAll(Brands.sedesFromToken(token)) }
         }
         return result
     }
 
+    /** Aplica colores y logo de la marca a toda la pantalla. */
+    private fun applyTheme(brand: BrandTheme) {
+        currentBrand = brand
+        val primary = ColorStateList.valueOf(brand.primaryColor)
+
+        rootLayout.setBackgroundColor(brand.backgroundColor)
+        window.statusBarColor = brand.primaryColor
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
+
+        tvTitle.setTextColor(brand.primaryColor)
+        ivLogo.setImageResource(brand.logoRes)
+        tvStatus.background = GradientDrawable().apply {
+            cornerRadius = 12 * resources.displayMetrics.density
+            setColor(brand.statusBoxColor)
+        }
+        tvStatus.setTextColor(brand.textColor)
+        tvCredit.setTextColor(brand.textColor)
+        progressBar.indeterminateTintList = primary
+
+        btnGallery.backgroundTintList = stateList(brand.tonalColor, DISABLED_BG)
+        btnGallery.setTextColor(stateList(brand.primaryColor, DISABLED_TEXT))
+        btnGallery.iconTint = stateList(brand.primaryColor, DISABLED_TEXT)
+
+        btnSignIn.strokeColor = primary
+        btnSignIn.setTextColor(brand.primaryColor)
+        btnSignIn.rippleColor = ColorStateList.valueOf(brand.tonalColor)
+
+        sedeButtons.values.forEach { styleSedeButton(it, brand) }
+    }
+
+    /** Crea los botones de sede según la marca (1 columna hasta 4 sedes, 2 columnas si hay más). */
+    private fun buildSedeButtons() {
+        layoutSedes.removeAllViews()
+        sedeButtons.clear()
+        if (visibleSedes.isEmpty()) return
+
+        val columns = if (visibleSedes.size <= 4) 1 else 2
+        val compact = columns == 2
+        val dp = resources.displayMetrics.density
+        val gap = (4 * dp).toInt()
+
+        visibleSedes.chunked(columns).forEach { rowSedes ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+            rowSedes.forEach { sede ->
+                val btn = MaterialButton(this).apply {
+                    // En la vista mixta (marca por defecto, 2 columnas) la marca va como encabezado,
+                    // así que quitamos el prefijo "TFB " para que el botón respire.
+                    text = if (compact && currentBrand == Brands.DEFAULT) sede.label.removePrefix("TFB ").trim() else sede.label
+                    isAllCaps = false
+                    maxLines = 1
+                    gravity = Gravity.CENTER
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 15f)
+                    insetTop = 0; insetBottom = 0
+                    minHeight = (if (compact) 44 else 50).let { (it * dp).toInt() }
+                    cornerRadius = (24 * dp).toInt()
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .apply { setMargins(gap, gap, gap, gap) }
+                    isEnabled = sede in allowedSedes
+                    setOnClickListener { startScanner(sede) }
+                }
+                styleSedeButton(btn, currentBrand)
+                sedeButtons[sede] = btn
+                row.addView(btn)
+            }
+            // Si la última fila tiene un solo botón en modo 2 columnas, rellenamos para mantener el ancho
+            if (compact && rowSedes.size < columns) {
+                row.addView(View(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
+                })
+            }
+            layoutSedes.addView(row)
+        }
+        // En la vista compacta añadimos un pequeño encabezado por marca cuando hay varias
+        if (compact) {
+            val brands = visibleSedes.map { Brands.brandOf(it) }.distinct()
+            if (brands.size > 1) addBrandLabels(brands, columns)
+        }
+    }
+
+    /** Inserta una etiqueta pequeña con el nombre de la marca encima de su primer grupo de botones. */
+    private fun addBrandLabels(brands: List<BrandTheme>, columns: Int) {
+        var rowIndex = 0
+        var inserted = 0
+        brands.forEach { brand ->
+            val label = TextView(this).apply {
+                text = brand.name
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setTextColor(currentBrand.textColor)
+                alpha = 0.7f
+                setPadding((8 * resources.displayMetrics.density).toInt(), (6 * resources.displayMetrics.density).toInt(), 0, 0)
+            }
+            layoutSedes.addView(label, rowIndex + inserted)
+            inserted++
+            rowIndex += (brand.sedes.size + columns - 1) / columns
+        }
+    }
+
+    private fun styleSedeButton(btn: MaterialButton, brand: BrandTheme) {
+        btn.backgroundTintList = stateList(brand.primaryColor, DISABLED_BG)
+        btn.setTextColor(stateList(brand.onPrimaryColor, DISABLED_TEXT))
+        btn.rippleColor = ColorStateList.valueOf(brand.tonalColor)
+    }
+
+    private fun stateList(enabledColor: Int, disabledColor: Int) = ColorStateList(
+        arrayOf(intArrayOf(android.R.attr.state_enabled), intArrayOf(-android.R.attr.state_enabled)),
+        intArrayOf(enabledColor, disabledColor)
+    )
+
     private fun applySedeButtons() {
         val signedIn = currentAccount != null
         btnGallery.isEnabled = signedIn
-        sedeButtons.forEach { (sede, button) ->
-            button.isEnabled = signedIn && sede in allowedSedes
-        }
+        sedeButtons.forEach { (sede, button) -> button.isEnabled = signedIn && sede in allowedSedes }
     }
 
     // ---------- Escáner ----------
 
     private fun startScanner(sede: Sede) {
         if (sede !in allowedSedes) {
-            Toast.makeText(this, "No tienes permiso para ${sede.label}", Toast.LENGTH_SHORT).show()
-            return
+            Toast.makeText(this, "No tienes permiso para ${sede.label}", Toast.LENGTH_SHORT).show(); return
         }
         selectedSede = sede
-
         val options = GmsDocumentScannerOptions.Builder()
             .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
             .setPageLimit(1)
             .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
             .setGalleryImportAllowed(false)
             .build()
-        val scanner = GmsDocumentScanning.getClient(options)
 
         showLoading(true)
         setStatus("Escaneando (${sede.label})...")
-
-        scanner.getStartScanIntent(this)
-            .addOnSuccessListener { intentSender ->
-                scannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
-            }
+        GmsDocumentScanning.getClient(options).getStartScanIntent(this)
+            .addOnSuccessListener { scannerLauncher.launch(IntentSenderRequest.Builder(it).build()) }
             .addOnFailureListener { e ->
                 Log.e(TAG, "No se pudo iniciar el escáner", e)
                 showLoading(false)
@@ -358,11 +455,8 @@ class MainActivity : AppCompatActivity() {
         val account = currentAccount
         val sede = selectedSede
         if (account == null || sede == null) {
-            showLoading(false)
-            setStatus("No hay cuenta vinculada o sede seleccionada")
-            return
+            showLoading(false); setStatus("No hay cuenta vinculada o sede seleccionada"); return
         }
-
         showLoading(true)
         setStatus("Subiendo a Drive (${sede.label})...")
 
@@ -378,39 +472,31 @@ class MainActivity : AppCompatActivity() {
                 consentLauncher.launch(e.intent)
             } catch (e: IOException) {
                 Log.e(TAG, "Error de red / API al subir a Drive", e)
-                showLoading(false)
-                setStatus("Error al subir a Drive: ${e.localizedMessage}")
+                showLoading(false); setStatus("Error al subir a Drive: ${e.localizedMessage}")
             } catch (e: Exception) {
                 Log.e(TAG, "Error inesperado al subir a Drive", e)
-                showLoading(false)
-                setStatus("Error inesperado: ${e.localizedMessage}")
+                showLoading(false); setStatus("Error inesperado: ${e.localizedMessage}")
             }
         }
     }
 
-    /** Ejecuta la subida real. DEBE llamarse desde Dispatchers.IO. @return nombre del archivo creado. */
     @Throws(IOException::class)
     private fun performUpload(account: GoogleSignInAccount, sede: Sede, imageUri: Uri): String {
         val credential = GoogleAccountCredential
             .usingOAuth2(this, listOf(DriveScopes.DRIVE_FILE))
             .apply { selectedAccount = account.account }
-
         val driveService = Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
             .setApplicationName(APP_NAME)
             .build()
 
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val userPrefix = (account.email ?: "usuario")
-            .substringBefore("@")
-            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val userPrefix = (account.email ?: "usuario").substringBefore("@").replace(Regex("[^A-Za-z0-9._-]"), "_")
 
-        // Ej.: Pilar_cajero.pilar_20260929_093658.jpg
         val metadata = DriveFile().apply {
             name = "${sede.key}_${userPrefix}_$timestamp.jpg"
             mimeType = MIME_JPEG
             parents = listOf(FOLDER_ID)
         }
-
         val inputStream = contentResolver.openInputStream(imageUri)
             ?: throw IOException("No se pudo abrir el archivo escaneado: $imageUri")
 
@@ -426,36 +512,32 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Diagnóstico ----------
 
-    private fun getSigningSha1(): String {
-        return try {
-            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                val info = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-                info.signingInfo?.apkContentsSigners ?: emptyArray()
-            } else {
-                @Suppress("DEPRECATION")
-                val info = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
-                @Suppress("DEPRECATION")
-                info.signatures ?: emptyArray()
-            }
-            val md = MessageDigest.getInstance("SHA-1")
-            signatures.joinToString("\n") { sig ->
-                md.digest(sig.toByteArray()).joinToString(":") { "%02X".format(it) }
-            }
-        } catch (e: Exception) {
-            "desconocido (${e.message})"
+    private fun getSigningSha1(): String = try {
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                .signingInfo?.apkContentsSigners ?: emptyArray()
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES).signatures ?: emptyArray()
         }
+        val md = MessageDigest.getInstance("SHA-1")
+        signatures.joinToString("\n") { sig -> md.digest(sig.toByteArray()).joinToString(":") { "%02X".format(it) } }
+    } catch (e: Exception) {
+        "desconocido (${e.message})"
     }
 
     // ---------- Utilidades de UI ----------
 
-    private fun setStatus(message: String) {
-        tvStatus.text = message
-    }
+    private fun setStatus(message: String) { tvStatus.text = message }
 
     private fun showLoading(loading: Boolean) {
         progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         btnSignIn.isEnabled = !loading
-        btnGallery.isEnabled = !loading && currentAccount != null
-        if (loading) sedeButtons.values.forEach { it.isEnabled = false } else applySedeButtons()
+        if (loading) {
+            btnGallery.isEnabled = false
+            sedeButtons.values.forEach { it.isEnabled = false }
+        } else {
+            applySedeButtons()
+        }
     }
 }

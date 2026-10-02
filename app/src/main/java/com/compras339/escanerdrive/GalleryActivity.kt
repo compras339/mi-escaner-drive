@@ -69,6 +69,8 @@ class GalleryActivity : AppCompatActivity() {
 
     private var driveService: Drive? = null
     private var isMaster = false
+    private var brand: BrandTheme = Brands.DEFAULT
+    private var filterSedes: List<Sede> = emptyList()
     private var allItems: List<DriveImage> = emptyList()
 
     /** Pantalla de consentimiento cuando el maestro aún no ha concedido drive.readonly. */
@@ -96,8 +98,15 @@ class GalleryActivity : AppCompatActivity() {
         progress = findViewById(R.id.progressGallery)
         tvEmpty = findViewById(R.id.tvEmpty)
 
+        // Marca y sedes visibles vienen de MainActivity
+        brand = Brands.byId(intent.getStringExtra(MainActivity.EXTRA_BRAND_ID))
+        filterSedes = (intent.getStringArrayListExtra(MainActivity.EXTRA_SEDE_KEYS) ?: arrayListOf())
+            .mapNotNull { Brands.sedeByKey(it) }
+            .ifEmpty { Brands.allSedes() }
+        applyBrandTheme(toolbar)
+
         spinnerSede = findViewById(R.id.spinnerSede)
-        val sedeOptions = listOf("Todas las sedes") + MainActivity.Sede.values().map { it.label }
+        val sedeOptions = listOf("Todas las sedes") + filterSedes.map { it.label }
         spinnerSede.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, sedeOptions)
         spinnerSede.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = applyFilter()
@@ -125,6 +134,16 @@ class GalleryActivity : AppCompatActivity() {
         toolbar.title = if (isMaster) "Todos los escaneos" else "Mis escaneos"
         driveService = buildDrive(account)
         loadImages(forceRefresh = false)
+    }
+
+    private fun applyBrandTheme(toolbar: MaterialToolbar) {
+        findViewById<View>(R.id.rootGallery).setBackgroundColor(brand.backgroundColor)
+        toolbar.setBackgroundColor(brand.primaryColor)
+        toolbar.setTitleTextColor(brand.onPrimaryColor)
+        toolbar.navigationIcon?.setTint(brand.onPrimaryColor)
+        findViewById<ImageButton>(R.id.btnRefresh).setColorFilter(brand.onPrimaryColor)
+        window.statusBarColor = brand.primaryColor
+        tvEmpty.setTextColor(brand.textColor)
     }
 
     private fun buildDrive(account: GoogleSignInAccount): Drive {
@@ -171,7 +190,7 @@ class GalleryActivity : AppCompatActivity() {
     private fun applyFilter() {
         val pos = spinnerSede.selectedItemPosition
         val items = if (pos <= 0) allItems else {
-            val sede = MainActivity.Sede.values()[pos - 1]
+            val sede = filterSedes[pos - 1]
             allItems.filter { it.name.startsWith(sede.key + "_", ignoreCase = true) }
         }
         adapter.items = items
