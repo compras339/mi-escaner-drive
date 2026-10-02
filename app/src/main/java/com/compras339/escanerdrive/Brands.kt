@@ -53,9 +53,7 @@ object Brands {
         textColor = c("#1C1B1F"),
         logoRes = R.drawable.logo_alimentos,
         sedes = listOf(
-            Sede("CP", "CP", setOf("cp")),
-            Sede("VVinedo", "V Viñedo", setOf("vvinedo", "vinedo", "vvinedos", "vinedos")),
-            Sede("VSambil", "V Sambil", setOf("vsambil", "sambil"))
+            Sede("CP", "CP", setOf("cp"))
         ),
         aliases = setOf("alimentos", "alimentosexpress", "ae")
     )
@@ -102,8 +100,30 @@ object Brands {
         disabledText = c("#8A8077")
     )
 
+    val VESUVIO = BrandTheme(
+        id = "vesuvio",
+        name = "Vesuvio Pizzería",
+        primaryColor = c("#5FB3E6"),      // azul claro (botones, título)
+        onPrimaryColor = c("#0B1E2E"),    // texto oscuro sobre azul claro
+        backgroundColor = c("#0E1620"),   // azul noche (debajo de la foto)
+        statusBoxColor = c("#1C2A38"),
+        tonalColor = c("#24384A"),
+        textColor = c("#E6F2FA"),
+        logoRes = R.drawable.logo_vesuvio,
+        sedes = listOf(
+            Sede("VVinedo", "V Viñedo", setOf("vvinedo", "vinedo", "vvinedos", "vinedos", "vesuviovinedo")),
+            Sede("VSambil", "V Sambil", setOf("vsambil", "sambil", "vesuviosambil"))
+        ),
+        aliases = setOf("vesuvio", "pizzeria"),
+        backgroundRes = R.drawable.bg_pizza,
+        backgroundOverlay = c("#B80E1620"),   // ~72% de velo azul oscuro sobre la foto
+        statusBarColor = c("#0A111A"),
+        disabledBg = c("#2A3A4A"),
+        disabledText = c("#7A8A99")
+    )
+
     /** Todas las marcas. La primera es la marca por defecto. */
-    val ALL: List<BrandTheme> = listOf(ALIMENTOS, PILAR, TRINCHERO)
+    val ALL: List<BrandTheme> = listOf(ALIMENTOS, PILAR, VESUVIO, TRINCHERO)
     val DEFAULT: BrandTheme = ALIMENTOS
 
     fun allSedes(): List<Sede> = ALL.flatMap { it.sedes }
