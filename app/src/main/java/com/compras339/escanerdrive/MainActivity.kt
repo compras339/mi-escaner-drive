@@ -86,6 +86,11 @@ class MainActivity : AppCompatActivity() {
          */
         const val PERMISSIONS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGPpnlAyQAyE-FUhJsa341kNBukuTq3Wwhw4vHJJ17IJeoJO-1dIwsmfZsj_j3Tx_hDoh3YY9m3Ic-/pub?gid=0&single=true&output=csv"
 
+        /** Números de WhatsApp con código de país (58 = Venezuela), sin + ni espacios. */
+        const val WHATSAPP_COMPRAS = "584244329297"
+        const val WHATSAPP_ADMIN = ""      // pendiente de definir
+        const val WHATSAPP_TEXT = "Hola, escribo desde la app Escáner de Compras."
+
         const val EXTRA_BRAND_ID = "brand_id"
         const val EXTRA_SEDE_KEYS = "sede_keys"
 
@@ -112,6 +117,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGallery: MaterialButton
     private lateinit var btnCierre: MaterialButton
     private lateinit var btnGastos: MaterialButton
+    private lateinit var fabWhatsapp: com.google.android.material.floatingactionbutton.FloatingActionButton
+    private lateinit var whatsappMenu: LinearLayout
     private lateinit var btnSignIn: MaterialButton
     private lateinit var tvCredit: TextView
     private lateinit var contentLayout: ConstraintLayout
@@ -205,6 +212,8 @@ class MainActivity : AppCompatActivity() {
         btnGallery = findViewById(R.id.btnGallery)
         btnCierre = findViewById(R.id.btnCierre)
         btnGastos = findViewById(R.id.btnGastos)
+        fabWhatsapp = findViewById(R.id.fabWhatsapp)
+        whatsappMenu = findViewById(R.id.whatsappMenu)
         btnSignIn = findViewById(R.id.btnSignIn)
         tvCredit = findViewById(R.id.tvCredit)
         contentLayout = findViewById(R.id.contentLayout)
@@ -219,6 +228,9 @@ class MainActivity : AppCompatActivity() {
         setupChefWebView()
         btnWelcomeSignIn.setOnClickListener { signIn() }
         btnCierre.setOnClickListener { onCierreClicked() }
+        fabWhatsapp.setOnClickListener { toggleWhatsappMenu() }
+        findViewById<MaterialButton>(R.id.btnWaCompras).setOnClickListener { openWhatsapp(WHATSAPP_COMPRAS, "Compras") }
+        findViewById<MaterialButton>(R.id.btnWaAdmin).setOnClickListener { openWhatsapp(WHATSAPP_ADMIN, "Administración") }
         btnGastos.setOnClickListener {
             startActivity(Intent(this, GastosActivity::class.java).apply {
                 putStringArrayListExtra(GastosActivity.EXTRA_SEDE_KEYS, ArrayList(allowedSedes.map { it.key }))
@@ -572,6 +584,33 @@ class MainActivity : AppCompatActivity() {
         sedeButtons.forEach { (sede, button) -> button.isEnabled = signedIn && sede in allowedSedes }
     }
 
+    // ---------- WhatsApp ----------
+
+    private fun toggleWhatsappMenu(show: Boolean = whatsappMenu.visibility != View.VISIBLE) {
+        if (show) {
+            whatsappMenu.alpha = 0f
+            whatsappMenu.translationY = -12f * resources.displayMetrics.density
+            whatsappMenu.visibility = View.VISIBLE
+            whatsappMenu.animate().alpha(1f).translationY(0f).setDuration(160L).start()
+        } else {
+            whatsappMenu.animate().alpha(0f).setDuration(120L)
+                .withEndAction { whatsappMenu.visibility = View.GONE }.start()
+        }
+    }
+
+    private fun openWhatsapp(number: String, label: String) {
+        toggleWhatsappMenu(show = false)
+        if (number.isBlank()) {
+            Toast.makeText(this, "Número de $label pendiente de definir", Toast.LENGTH_SHORT).show(); return
+        }
+        val url = "https://wa.me/$number?text=" + Uri.encode(WHATSAPP_TEXT)
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: Exception) {
+            Toast.makeText(this, "No se pudo abrir WhatsApp", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // ---------- Pantalla de espera / bienvenida ----------
 
     @SuppressLint("ClickableViewAccessibility", "SetJavaScriptEnabled")
@@ -619,6 +658,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showContent() {
+        whatsappMenu.visibility = View.GONE
         welcomeShowing = false
         stopWelcomeAnimations()
         welcomeLayout.visibility = View.GONE
