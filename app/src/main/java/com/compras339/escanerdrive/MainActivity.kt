@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.PorterDuff
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
@@ -12,6 +13,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -22,7 +24,6 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -79,9 +80,6 @@ class MainActivity : AppCompatActivity() {
         private const val APP_NAME = "DocScanner"
         private const val MIME_JPEG = "image/jpeg"
 
-        private val DISABLED_BG = Color.parseColor("#E0DDE3")
-        private val DISABLED_TEXT = Color.parseColor("#9E9E9E")
-
         /** Quita acentos, espacios y símbolos; pasa a minúsculas. */
         fun normalize(s: String): String =
             Normalizer.normalize(s, Normalizer.Form.NFD)
@@ -91,7 +89,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------- Vistas ----------
-    private lateinit var rootLayout: ConstraintLayout
+    private lateinit var rootLayout: FrameLayout
+    private lateinit var ivBackground: ImageView
     private lateinit var tvTitle: TextView
     private lateinit var ivLogo: ImageView
     private lateinit var tvStatus: TextView
@@ -157,6 +156,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         rootLayout = findViewById(R.id.rootLayout)
+        ivBackground = findViewById(R.id.ivBackground)
         tvTitle = findViewById(R.id.tvTitle)
         ivLogo = findViewById(R.id.ivLogo)
         tvStatus = findViewById(R.id.tvStatus)
@@ -311,7 +311,15 @@ class MainActivity : AppCompatActivity() {
         val primary = ColorStateList.valueOf(brand.primaryColor)
 
         rootLayout.setBackgroundColor(brand.backgroundColor)
-        window.statusBarColor = brand.primaryColor
+        if (brand.backgroundRes != null) {
+            ivBackground.setImageResource(brand.backgroundRes)
+            ivBackground.setColorFilter(brand.backgroundOverlay, PorterDuff.Mode.SRC_ATOP)
+            ivBackground.visibility = View.VISIBLE
+        } else {
+            ivBackground.setImageDrawable(null)
+            ivBackground.visibility = View.GONE
+        }
+        window.statusBarColor = brand.statusBarColor
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
 
         tvTitle.setTextColor(brand.primaryColor)
@@ -324,9 +332,9 @@ class MainActivity : AppCompatActivity() {
         tvCredit.setTextColor(brand.textColor)
         progressBar.indeterminateTintList = primary
 
-        btnGallery.backgroundTintList = stateList(brand.tonalColor, DISABLED_BG)
-        btnGallery.setTextColor(stateList(brand.primaryColor, DISABLED_TEXT))
-        btnGallery.iconTint = stateList(brand.primaryColor, DISABLED_TEXT)
+        btnGallery.backgroundTintList = stateList(brand.tonalColor, brand.disabledBg)
+        btnGallery.setTextColor(stateList(brand.primaryColor, brand.disabledText))
+        btnGallery.iconTint = stateList(brand.primaryColor, brand.disabledText)
 
         btnSignIn.strokeColor = primary
         btnSignIn.setTextColor(brand.primaryColor)
@@ -335,7 +343,10 @@ class MainActivity : AppCompatActivity() {
         sedeButtons.values.forEach { styleSedeButton(it, brand) }
     }
 
-    /** Crea los botones de sede según la marca (1 columna hasta 4 sedes, 2 columnas si hay más). */
+    /**
+     * Crea los botones de sede. 1 columna hasta 4 sedes, 2 columnas si hay más.
+     * En la vista mixta (varias marcas) cada marca va en su propio bloque con un encabezado.
+     */
     private fun buildSedeButtons() {
         layoutSedes.removeAllViews()
         sedeButtons.clear()
@@ -346,73 +357,60 @@ class MainActivity : AppCompatActivity() {
         val dp = resources.displayMetrics.density
         val gap = (4 * dp).toInt()
 
-        visibleSedes.chunked(columns).forEach { rowSedes ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-            rowSedes.forEach { sede ->
-                val btn = MaterialButton(this).apply {
-                    // En la vista mixta (marca por defecto, 2 columnas) la marca va como encabezado,
-                    // así que quitamos el prefijo "TFB " para que el botón respire.
-                    text = if (compact && currentBrand == Brands.DEFAULT) sede.label.removePrefix("TFB ").trim() else sede.label
-                    isAllCaps = false
-                    // Nombres largos (p. ej. "TFB GUATAPARO") pueden ocupar dos líneas
-                    maxLines = 2
-                    gravity = Gravity.CENTER
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) 12f else 15f)
-                    setPadding((8 * dp).toInt(), (10 * dp).toInt(), (8 * dp).toInt(), (10 * dp).toInt())
-                    insetTop = 0; insetBottom = 0
-                    minHeight = (if (compact) 48 else 50).let { (it * dp).toInt() }
-                    cornerRadius = (24 * dp).toInt()
-                    // Alto MATCH_PARENT: los dos botones de una misma fila quedan igual de altos
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
-                        .apply { setMargins(gap, gap, gap, gap) }
-                    isEnabled = sede in allowedSedes
-                    setOnClickListener { startScanner(sede) }
-                }
-                styleSedeButton(btn, currentBrand)
-                sedeButtons[sede] = btn
-                row.addView(btn)
-            }
-            // Si la última fila tiene un solo botón en modo 2 columnas, rellenamos para mantener el ancho
-            if (compact && rowSedes.size < columns) {
-                row.addView(View(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
+        // Agrupamos por marca manteniendo el orden
+        val groups = visibleSedes.groupBy { Brands.brandOf(it) }
+        val showHeaders = groups.size > 1
+
+        groups.forEach { (brand, sedes) ->
+            if (showHeaders) {
+                layoutSedes.addView(TextView(this).apply {
+                    text = brand.name
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    setTextColor(currentBrand.textColor)
+                    alpha = 0.7f
+                    setPadding((8 * dp).toInt(), (8 * dp).toInt(), 0, 0)
                 })
             }
-            layoutSedes.addView(row)
-        }
-        // En la vista compacta añadimos un pequeño encabezado por marca cuando hay varias
-        if (compact) {
-            val brands = visibleSedes.map { Brands.brandOf(it) }.distinct()
-            if (brands.size > 1) addBrandLabels(brands, columns)
-        }
-    }
-
-    /** Inserta una etiqueta pequeña con el nombre de la marca encima de su primer grupo de botones. */
-    private fun addBrandLabels(brands: List<BrandTheme>, columns: Int) {
-        var rowIndex = 0
-        var inserted = 0
-        brands.forEach { brand ->
-            val label = TextView(this).apply {
-                text = brand.name
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setTextColor(currentBrand.textColor)
-                alpha = 0.7f
-                setPadding((8 * resources.displayMetrics.density).toInt(), (6 * resources.displayMetrics.density).toInt(), 0, 0)
+            sedes.chunked(columns).forEach { rowSedes ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+                rowSedes.forEach { sede ->
+                    val btn = MaterialButton(this).apply {
+                        // Con encabezado de marca quitamos el prefijo "TFB " para que el botón respire
+                        text = if (compact && showHeaders) sede.label.removePrefix("TFB ").trim() else sede.label
+                        isAllCaps = false
+                        maxLines = 2
+                        gravity = Gravity.CENTER
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) 12f else 15f)
+                        setPadding((8 * dp).toInt(), (10 * dp).toInt(), (8 * dp).toInt(), (10 * dp).toInt())
+                        insetTop = 0; insetBottom = 0
+                        minHeight = (if (compact) 48 else 50).let { (it * dp).toInt() }
+                        cornerRadius = (24 * dp).toInt()
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                            .apply { setMargins(gap, gap, gap, gap) }
+                        isEnabled = sede in allowedSedes
+                        setOnClickListener { startScanner(sede) }
+                    }
+                    styleSedeButton(btn, currentBrand)
+                    sedeButtons[sede] = btn
+                    row.addView(btn)
+                }
+                // Fila incompleta en modo 2 columnas: relleno invisible para mantener el ancho
+                if (compact && rowSedes.size < columns) {
+                    row.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) })
+                }
+                layoutSedes.addView(row)
             }
-            layoutSedes.addView(label, rowIndex + inserted)
-            inserted++
-            rowIndex += (brand.sedes.size + columns - 1) / columns
         }
     }
 
     private fun styleSedeButton(btn: MaterialButton, brand: BrandTheme) {
-        btn.backgroundTintList = stateList(brand.primaryColor, DISABLED_BG)
-        btn.setTextColor(stateList(brand.onPrimaryColor, DISABLED_TEXT))
+        btn.backgroundTintList = stateList(brand.primaryColor, brand.disabledBg)
+        btn.setTextColor(stateList(brand.onPrimaryColor, brand.disabledText))
         btn.rippleColor = ColorStateList.valueOf(brand.tonalColor)
     }
 

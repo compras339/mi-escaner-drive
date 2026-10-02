@@ -30,7 +30,12 @@ data class BrandTheme(
     val textColor: Int,         // texto general
     val logoRes: Int,           // drawable del logo
     val sedes: List<Sede>,
-    val aliases: Set<String>    // palabras en la hoja que otorgan TODAS las sedes de esta marca
+    val aliases: Set<String>,   // palabras en la hoja que otorgan TODAS las sedes de esta marca
+    val backgroundRes: Int? = null,          // imagen de fondo opcional (se dibuja detrás de todo)
+    val backgroundOverlay: Int = 0,          // velo de color sobre la imagen (ARGB, p. ej. 65% negro)
+    val statusBarColor: Int = primaryColor,  // color de la barra de estado
+    val disabledBg: Int = Color.parseColor("#E0DDE3"),   // botón de sede sin permiso
+    val disabledText: Int = Color.parseColor("#9E9E9E")
 )
 
 object Brands {
@@ -49,7 +54,6 @@ object Brands {
         logoRes = R.drawable.logo_alimentos,
         sedes = listOf(
             Sede("CP", "CP", setOf("cp")),
-            Sede("Pilar", "Pilar", setOf("pilar")),
             Sede("VVinedo", "V Viñedo", setOf("vvinedo", "vinedo", "vvinedos", "vinedos")),
             Sede("VSambil", "V Sambil", setOf("vsambil", "sambil"))
         ),
@@ -77,8 +81,29 @@ object Brands {
         aliases = setOf("tfb", "trinchero")
     )
 
+    val PILAR = BrandTheme(
+        id = "pilar",
+        name = "Pilar y Juanito",
+        primaryColor = c("#B08D4B"),      // dorado del logo
+        onPrimaryColor = c("#1A1208"),    // texto oscuro sobre dorado
+        backgroundColor = c("#14100C"),   // negro cálido (debajo de la imagen de brasas)
+        statusBoxColor = c("#2A211A"),
+        tonalColor = c("#3A2E1F"),
+        textColor = c("#F3EADB"),         // crema
+        logoRes = R.drawable.logo_pilar,
+        sedes = listOf(
+            Sede("Pilar", "Pilar y Juanito", setOf("pilar", "pilaryjuanito"))
+        ),
+        aliases = setOf("pilaryjuanito", "asador"),
+        backgroundRes = R.drawable.bg_brasas,
+        backgroundOverlay = c("#A614100C"),   // ~65% de velo oscuro sobre las brasas
+        statusBarColor = c("#0E0B08"),
+        disabledBg = c("#3A332C"),
+        disabledText = c("#8A8077")
+    )
+
     /** Todas las marcas. La primera es la marca por defecto. */
-    val ALL: List<BrandTheme> = listOf(ALIMENTOS, TRINCHERO)
+    val ALL: List<BrandTheme> = listOf(ALIMENTOS, PILAR, TRINCHERO)
     val DEFAULT: BrandTheme = ALIMENTOS
 
     fun allSedes(): List<Sede> = ALL.flatMap { it.sedes }

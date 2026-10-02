@@ -1,16 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <!-- Imagen de fondo opcional según la marca (p. ej. brasas) -->
+    <ImageView
+        android:id="@+id/ivBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="Fondo"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
+        tools:ignore="HardcodedText" />
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:id="@+id/contentLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
     android:paddingStart="24dp"
     android:paddingTop="20dp"
     android:paddingEnd="24dp"
-    android:paddingBottom="12dp"
-    tools:context=".MainActivity">
+    android:paddingBottom="12dp">
 
     <!-- Título (se ajusta al ancho en una sola línea) -->
     <TextView
@@ -139,3 +154,5 @@
         tools:ignore="HardcodedText,SmallSp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+
+</FrameLayout>
