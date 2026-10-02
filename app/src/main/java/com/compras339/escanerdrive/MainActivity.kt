@@ -15,7 +15,9 @@ import android.os.Looper
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -119,6 +121,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGastos: MaterialButton
     private lateinit var fabWhatsapp: com.google.android.material.floatingactionbutton.FloatingActionButton
     private lateinit var whatsappMenu: LinearLayout
+    private lateinit var whatsappFloat: LinearLayout
     private lateinit var btnSignIn: MaterialButton
     private lateinit var tvCredit: TextView
     private lateinit var contentLayout: ConstraintLayout
@@ -214,6 +217,7 @@ class MainActivity : AppCompatActivity() {
         btnGastos = findViewById(R.id.btnGastos)
         fabWhatsapp = findViewById(R.id.fabWhatsapp)
         whatsappMenu = findViewById(R.id.whatsappMenu)
+        whatsappFloat = findViewById(R.id.whatsappFloat)
         btnSignIn = findViewById(R.id.btnSignIn)
         tvCredit = findViewById(R.id.tvCredit)
         contentLayout = findViewById(R.id.contentLayout)
@@ -228,7 +232,7 @@ class MainActivity : AppCompatActivity() {
         setupChefWebView()
         btnWelcomeSignIn.setOnClickListener { signIn() }
         btnCierre.setOnClickListener { onCierreClicked() }
-        fabWhatsapp.setOnClickListener { toggleWhatsappMenu() }
+        setupWhatsappBubble()
         findViewById<MaterialButton>(R.id.btnWaCompras).setOnClickListener { openWhatsapp(WHATSAPP_COMPRAS, "Compras") }
         findViewById<MaterialButton>(R.id.btnWaAdmin).setOnClickListener { openWhatsapp(WHATSAPP_ADMIN, "Administración") }
         btnGastos.setOnClickListener {
@@ -586,12 +590,50 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- WhatsApp ----------
 
+    /** Burbuja arrastrable verticalmente por el borde derecho; un toque sin arrastrar abre el menú. */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupWhatsappBubble() {
+        val slop = ViewConfiguration.get(this).scaledTouchSlop
+        var downY = 0f
+        var startTy = 0f
+        var moved = false
+        fabWhatsapp.setOnClickListener { toggleWhatsappMenu() }
+        fabWhatsapp.setOnTouchListener { v, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downY = ev.rawY; startTy = whatsappFloat.translationY; moved = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = ev.rawY - downY
+                    if (!moved && kotlin.math.abs(dy) > slop) {
+                        moved = true
+                        if (whatsappMenu.visibility == View.VISIBLE) toggleWhatsappMenu(show = false)
+                    }
+                    if (moved) {
+                        val parent = whatsappFloat.parent as View
+                        val minTy = -whatsappFloat.top.toFloat()
+                        val maxTy = (parent.height - whatsappFloat.bottom).toFloat()
+                        whatsappFloat.translationY = (startTy + dy).coerceIn(minTy, maxTy)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!moved) v.performClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> true
+                else -> false
+            }
+        }
+    }
+
     private fun toggleWhatsappMenu(show: Boolean = whatsappMenu.visibility != View.VISIBLE) {
         if (show) {
             whatsappMenu.alpha = 0f
-            whatsappMenu.translationY = -12f * resources.displayMetrics.density
+            whatsappMenu.translationX = 16f * resources.displayMetrics.density
             whatsappMenu.visibility = View.VISIBLE
-            whatsappMenu.animate().alpha(1f).translationY(0f).setDuration(160L).start()
+            whatsappMenu.animate().alpha(1f).translationX(0f).setDuration(160L).start()
         } else {
             whatsappMenu.animate().alpha(0f).setDuration(120L)
                 .withEndAction { whatsappMenu.visibility = View.GONE }.start()
@@ -632,6 +674,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showWelcome(loading: Boolean, error: String? = null) {
         welcomeShowing = true
+        whatsappFloat.visibility = View.GONE
         welcomeLayout.visibility = View.VISIBLE
         contentLayout.visibility = View.GONE
         window.statusBarColor = WELCOME_BG
@@ -659,6 +702,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showContent() {
         whatsappMenu.visibility = View.GONE
+        whatsappFloat.visibility = View.VISIBLE
         welcomeShowing = false
         stopWelcomeAnimations()
         welcomeLayout.visibility = View.GONE

@@ -27,50 +27,6 @@
     android:paddingEnd="24dp"
     android:paddingBottom="12dp">
 
-    <!-- Botón de WhatsApp (arriba a la izquierda) -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabWhatsapp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:contentDescription="Contactar por WhatsApp"
-        app:backgroundTint="#FFFFFF"
-        app:elevation="2dp"
-        app:fabCustomSize="40dp"
-        app:layout_constraintBottom_toBottomOf="@id/tvTitle"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/tvTitle"
-        app:maxImageSize="28dp"
-        app:srcCompat="@drawable/ic_whatsapp_oficial"
-        app:tint="@null"
-        tools:ignore="HardcodedText" />
-
-    <!-- Burbujas desplegables de WhatsApp -->
-    <LinearLayout
-        android:id="@+id/whatsappMenu"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:elevation="6dp"
-        android:orientation="vertical"
-        android:visibility="gone"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/fabWhatsapp"
-        tools:visibility="visible">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnWaCompras"
-            style="@style/WaBubble"
-            android:text="Compras"
-            tools:ignore="HardcodedText" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnWaAdmin"
-            style="@style/WaBubble"
-            android:layout_marginTop="6dp"
-            android:text="Administración"
-            tools:ignore="HardcodedText" />
-    </LinearLayout>
-
     <!-- Píldora de acceso a Gastos (solo con el módulo GASTOS) -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnGastos"
@@ -101,7 +57,6 @@
         android:id="@+id/tvTitle"
         android:layout_width="0dp"
         android:layout_height="40dp"
-        android:layout_marginStart="8dp"
         android:layout_marginEnd="8dp"
         android:gravity="center"
         android:maxLines="1"
@@ -111,7 +66,7 @@
         app:autoSizeMinTextSize="14sp"
         app:autoSizeTextType="uniform"
         app:layout_constraintEnd_toStartOf="@id/btnGastos"
-        app:layout_constraintStart_toEndOf="@id/fabWhatsapp"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />
 
@@ -246,6 +201,57 @@
         tools:ignore="HardcodedText,SmallSp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- ===== Burbuja flotante de WhatsApp (borde derecho, arrastrable) ===== -->
+    <LinearLayout
+        android:id="@+id/whatsappFloat"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <!-- Opciones (se despliegan hacia la izquierda) -->
+        <LinearLayout
+            android:id="@+id/whatsappMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:gravity="end"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnWaCompras"
+                style="@style/WaBubble"
+                android:text="Compras"
+                tools:ignore="HardcodedText" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnWaAdmin"
+                style="@style/WaBubble"
+                android:layout_marginTop="6dp"
+                android:text="Administración"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabWhatsapp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="Contactar por WhatsApp"
+            app:backgroundTint="#CCFFFFFF"
+            app:elevation="3dp"
+            app:fabCustomSize="52dp"
+            app:maxImageSize="34dp"
+            app:srcCompat="@drawable/ic_whatsapp_oficial"
+            app:tint="@null"
+            tools:ignore="HardcodedText" />
+    </LinearLayout>
 
     <!-- ===== Pantalla de espera / inicio de sesión (sin sesión o cargando permisos) ===== -->
     <LinearLayout
