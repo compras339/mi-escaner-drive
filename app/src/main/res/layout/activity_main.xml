@@ -85,6 +85,28 @@
         app:layout_constraintTop_toBottomOf="@id/tvStatus"
         tools:visibility="visible" />
 
+    <!-- Cierre de caja (solo vistas de una marca) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCierre"
+        android:layout_width="0dp"
+        android:layout_height="56dp"
+        android:layout_marginTop="12dp"
+        android:letterSpacing="0.08"
+        android:text="CIERRE DE CAJA"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:cornerRadius="16dp"
+        app:icon="@drawable/ic_cierre"
+        app:iconGravity="textStart"
+        app:iconPadding="10dp"
+        app:iconSize="22dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/progressBar"
+        tools:ignore="HardcodedText"
+        tools:visibility="visible" />
+
     <!-- Botones de sede (se generan en código según la marca y los permisos) -->
     <ScrollView
         android:id="@+id/scrollSedes"
@@ -98,7 +120,7 @@
         app:layout_constraintBottom_toTopOf="@id/btnGallery"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/progressBar"
+        app:layout_constraintTop_toBottomOf="@id/btnCierre"
         tools:visibility="visible">
 
         <LinearLayout

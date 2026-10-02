@@ -72,6 +72,9 @@ class MainActivity : AppCompatActivity() {
         /** Carpeta de Google Drive donde se suben los escaneos. */
         const val FOLDER_ID = "1zD07AzUmTo9tvRnVUmpO2Dk7uJe65PkZ"
 
+        /** Carpeta de Google Drive "CIERRE DE CAJA APK" para los soportes de cierre. */
+        const val FOLDER_ID_CIERRE = "AQUI_ID_CARPETA_CIERRE"
+
         /** Usuario maestro: siempre tiene todas las sedes de todas las marcas. */
         const val MASTER_EMAIL = "compras@grupoalimentos4.com"
 
@@ -106,6 +109,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scrollSedes: ScrollView
     private lateinit var layoutSedes: LinearLayout
     private lateinit var btnGallery: MaterialButton
+    private lateinit var btnCierre: MaterialButton
     private lateinit var btnSignIn: MaterialButton
     private lateinit var tvCredit: TextView
     private lateinit var contentLayout: ConstraintLayout
@@ -132,6 +136,7 @@ class MainActivity : AppCompatActivity() {
     private var currentBrand: BrandTheme = Brands.DEFAULT
     private val sedeButtons = mutableMapOf<Sede, MaterialButton>()
     private var selectedSede: Sede? = null
+    private var selectedIsCierre = false
     private var pendingUploadUri: Uri? = null
     private var lastPermissionsLoadAt = 0L
     private val isBusy get() = progressBar.visibility == View.VISIBLE
@@ -190,6 +195,7 @@ class MainActivity : AppCompatActivity() {
         scrollSedes = findViewById(R.id.scrollSedes)
         layoutSedes = findViewById(R.id.layoutSedes)
         btnGallery = findViewById(R.id.btnGallery)
+        btnCierre = findViewById(R.id.btnCierre)
         btnSignIn = findViewById(R.id.btnSignIn)
         tvCredit = findViewById(R.id.tvCredit)
         contentLayout = findViewById(R.id.contentLayout)
@@ -202,6 +208,7 @@ class MainActivity : AppCompatActivity() {
         btnWelcomeSignIn = findViewById(R.id.btnWelcomeSignIn)
         setupChefWebView()
         btnWelcomeSignIn.setOnClickListener { signIn() }
+        btnCierre.setOnClickListener { onCierreClicked() }
 
         setupGoogleSignIn()
         applyTheme(Brands.DEFAULT)
@@ -275,6 +282,7 @@ class MainActivity : AppCompatActivity() {
         buildSedeButtons()
         scrollSedes.visibility = View.GONE
         btnGallery.visibility = View.GONE
+        btnCierre.visibility = View.GONE
         hideStatus()
         showWelcome(loading = false)
     }
@@ -297,6 +305,8 @@ class MainActivity : AppCompatActivity() {
             buildSedeButtons()
             scrollSedes.visibility = View.VISIBLE
             btnGallery.visibility = View.VISIBLE
+            // Cierre de caja: solo en vistas de una marca y con al menos una sede permitida
+            btnCierre.visibility = if (currentBrand != Brands.MIXED && sedes.isNotEmpty()) View.VISIBLE else View.GONE
             showLoading(false)
             showContent()
 
@@ -380,7 +390,7 @@ class MainActivity : AppCompatActivity() {
         }
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
 
-        tvTitle.setTextColor(brand.primaryColor)
+        tvTitle.setTextColor(brand.headerColor ?: brand.primaryColor)
         ivLogo.setImageResource(brand.logoRes)
         tvStatus.background = GradientDrawable().apply {
             cornerRadius = 12 * resources.displayMetrics.density
@@ -390,12 +400,19 @@ class MainActivity : AppCompatActivity() {
         tvCredit.setTextColor(brand.textColor)
         progressBar.indeterminateTintList = primary
 
+        val accent = brand.headerColor ?: brand.primaryColor   // ámbar en la vista mixta
         btnGallery.backgroundTintList = stateList(brand.tonalColor, brand.disabledBg)
-        btnGallery.setTextColor(stateList(brand.primaryColor, brand.disabledText))
-        btnGallery.iconTint = stateList(brand.primaryColor, brand.disabledText)
+        btnGallery.setTextColor(stateList(accent, brand.disabledText))
+        btnGallery.iconTint = stateList(accent, brand.disabledText)
 
-        btnSignIn.strokeColor = primary
-        btnSignIn.setTextColor(brand.primaryColor)
+        btnSignIn.strokeColor = ColorStateList.valueOf(accent)
+        btnSignIn.setTextColor(accent)
+
+        // Botón de cierre de caja: relleno con el color de marca, texto/ícono en contraste
+        btnCierre.backgroundTintList = stateList(brand.primaryColor, brand.disabledBg)
+        btnCierre.setTextColor(stateList(brand.onPrimaryColor, brand.disabledText))
+        btnCierre.iconTint = stateList(brand.onPrimaryColor, brand.disabledText)
+        btnCierre.rippleColor = ColorStateList.valueOf(brand.tonalColor)
         btnSignIn.rippleColor = ColorStateList.valueOf(brand.tonalColor)
 
         sedeButtons.values.forEach { styleSedeButton(it, brand) }
@@ -418,15 +435,30 @@ class MainActivity : AppCompatActivity() {
         // Agrupamos por marca manteniendo el orden
         val groups = visibleSedes.groupBy { Brands.brandOf(it) }
         val showHeaders = groups.size > 1
+        val cardColor = currentBrand.cardColor
 
         groups.forEach { (brand, sedes) ->
+            // Contenedor del grupo: tarjeta (vista mixta) o el propio layout
+            val container: LinearLayout = if (showHeaders && cardColor != null) {
+                LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    background = GradientDrawable().apply { cornerRadius = 16 * dp; setColor(cardColor) }
+                    setPadding((10 * dp).toInt(), (8 * dp).toInt(), (10 * dp).toInt(), (10 * dp).toInt())
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, (10 * dp).toInt()) }
+                }.also { layoutSedes.addView(it) }
+            } else layoutSedes
+
             if (showHeaders) {
-                layoutSedes.addView(TextView(this).apply {
-                    text = brand.name
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                    setTextColor(currentBrand.textColor)
-                    alpha = 0.7f
-                    setPadding((8 * dp).toInt(), (8 * dp).toInt(), 0, 0)
+                container.addView(TextView(this).apply {
+                    text = brand.name.uppercase(Locale.getDefault())
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                    letterSpacing = 0.18f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(currentBrand.headerColor ?: currentBrand.textColor)
+                    alpha = if (currentBrand.headerColor != null) 1f else 0.7f
+                    setPadding((6 * dp).toInt(), (4 * dp).toInt(), 0, (4 * dp).toInt())
                 })
             }
             sedes.chunked(columns).forEach { rowSedes ->
@@ -438,7 +470,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 rowSedes.forEach { sede ->
                     val btn = MaterialButton(this).apply {
-                        // Con encabezado de marca quitamos el prefijo "TFB " para que el botón respire
+                        // Con encabezado de marca quitamos el prefijo para que el botón respire
                         text = if (compact && showHeaders)
                             sede.label.removePrefix("TFB ").removePrefix("VESUVIO ").trim()
                         else sede.label
@@ -459,11 +491,14 @@ class MainActivity : AppCompatActivity() {
                     sedeButtons[sede] = btn
                     row.addView(btn)
                 }
-                // Fila incompleta en modo 2 columnas: relleno invisible para mantener el ancho
+                // Fila incompleta en modo 2 columnas: relleno invisible para mantener el ancho.
+                // Debe ser MATCH_PARENT en alto; si no, la fila mide su altura por el relleno y los botones desaparecen.
                 if (compact && rowSedes.size < columns) {
-                    row.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(0, 1, 1f) })
+                    row.addView(View(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                    })
                 }
-                layoutSedes.addView(row)
+                container.addView(row)
             }
         }
     }
@@ -482,6 +517,7 @@ class MainActivity : AppCompatActivity() {
     private fun applySedeButtons() {
         val signedIn = currentAccount != null
         btnGallery.isEnabled = signedIn
+        btnCierre.isEnabled = signedIn && allowedSedes.isNotEmpty()
         sedeButtons.forEach { (sede, button) -> button.isEnabled = signedIn && sede in allowedSedes }
     }
 
@@ -577,11 +613,29 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Escáner ----------
 
-    private fun startScanner(sede: Sede) {
+    /** Pulsación de "CIERRE DE CAJA": elige la sede (si hay varias) y abre el escáner en modo cierre. */
+    private fun onCierreClicked() {
+        if (FOLDER_ID_CIERRE.startsWith("AQUI_")) {
+            setStatus("Falta configurar la carpeta de cierre de caja (FOLDER_ID_CIERRE)."); return
+        }
+        val opciones = visibleSedes.filter { it in allowedSedes }
+        when (opciones.size) {
+            0 -> Toast.makeText(this, "No tienes sedes asignadas", Toast.LENGTH_SHORT).show()
+            1 -> startScanner(opciones.first(), cierre = true)
+            else -> androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Cierre de caja: ¿de qué sede?")
+                .setItems(opciones.map { it.label }.toTypedArray()) { _, i -> startScanner(opciones[i], cierre = true) }
+                .setNegativeButton("Cancelar", null)
+                .show()
+        }
+    }
+
+    private fun startScanner(sede: Sede, cierre: Boolean = false) {
         if (sede !in allowedSedes) {
             Toast.makeText(this, "No tienes permiso para ${sede.label}", Toast.LENGTH_SHORT).show(); return
         }
         selectedSede = sede
+        selectedIsCierre = cierre
         val options = GmsDocumentScannerOptions.Builder()
             .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
             .setPageLimit(1)
@@ -590,7 +644,7 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         showLoading(true)
-        setStatus("Escaneando (${sede.label})...")
+        setStatus(if (cierre) "Escaneando cierre de caja (${sede.label})..." else "Escaneando (${sede.label})...")
         GmsDocumentScanning.getClient(options).getStartScanIntent(this)
             .addOnSuccessListener { scannerLauncher.launch(IntentSenderRequest.Builder(it).build()) }
             .addOnFailureListener { e ->
@@ -608,14 +662,15 @@ class MainActivity : AppCompatActivity() {
         if (account == null || sede == null) {
             showLoading(false); setStatus("No hay cuenta vinculada o sede seleccionada"); return
         }
+        val cierre = selectedIsCierre
         showLoading(true)
-        setStatus("Subiendo a Drive (${sede.label})...")
+        setStatus(if (cierre) "Subiendo cierre de caja (${sede.label})..." else "Subiendo a Drive (${sede.label})...")
 
         lifecycleScope.launch {
             try {
-                val fileName = withContext(Dispatchers.IO) { performUpload(account, sede, imageUri) }
+                val fileName = withContext(Dispatchers.IO) { performUpload(account, sede, imageUri, cierre) }
                 showLoading(false)
-                setStatus("Archivo subido:\n$fileName")
+                setStatus((if (cierre) "Cierre de caja subido:\n" else "Archivo subido:\n") + fileName)
                 Toast.makeText(this@MainActivity, "Subida completada", Toast.LENGTH_SHORT).show()
             } catch (e: UserRecoverableAuthIOException) {
                 pendingUploadUri = imageUri
@@ -632,7 +687,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Throws(IOException::class)
-    private fun performUpload(account: GoogleSignInAccount, sede: Sede, imageUri: Uri): String {
+    private fun performUpload(account: GoogleSignInAccount, sede: Sede, imageUri: Uri, cierre: Boolean): String {
         val credential = GoogleAccountCredential
             .usingOAuth2(this, listOf(DriveScopes.DRIVE_FILE))
             .apply { selectedAccount = account.account }
@@ -646,7 +701,8 @@ class MainActivity : AppCompatActivity() {
         val metadata = DriveFile().apply {
             name = "${sede.key}_${userPrefix}_$timestamp.jpg"
             mimeType = MIME_JPEG
-            parents = listOf(FOLDER_ID)
+            // Los cierres de caja van a su propia carpeta; mismo patrón de nombre Sede_usuario_fecha
+            parents = listOf(if (cierre) FOLDER_ID_CIERRE else FOLDER_ID)
         }
         val inputStream = contentResolver.openInputStream(imageUri)
             ?: throw IOException("No se pudo abrir el archivo escaneado: $imageUri")
@@ -694,6 +750,7 @@ class MainActivity : AppCompatActivity() {
         btnSignIn.isEnabled = !loading
         if (loading) {
             btnGallery.isEnabled = false
+            btnCierre.isEnabled = false
             sedeButtons.values.forEach { it.isEnabled = false }
         } else {
             applySedeButtons()

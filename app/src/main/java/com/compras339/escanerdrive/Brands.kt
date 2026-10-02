@@ -35,7 +35,9 @@ data class BrandTheme(
     val backgroundOverlay: Int = 0,          // velo de color sobre la imagen (ARGB, p. ej. 65% negro)
     val statusBarColor: Int = primaryColor,  // color de la barra de estado
     val disabledBg: Int = Color.parseColor("#E0DDE3"),   // botón de sede sin permiso
-    val disabledText: Int = Color.parseColor("#9E9E9E")
+    val disabledText: Int = Color.parseColor("#9E9E9E"),
+    val cardColor: Int? = null,              // fondo de la tarjeta por marca en la vista mixta (null = sin tarjeta)
+    val headerColor: Int? = null             // color del nombre de marca en la vista mixta (null = textColor)
 )
 
 object Brands {
@@ -122,13 +124,36 @@ object Brands {
         disabledText = c("#7A8A99")
     )
 
-    /** Todas las marcas. La primera es la marca por defecto. */
+    /**
+     * Tema de la vista mixta (usuario con TODAS las sedes o con sedes de varias marcas).
+     * Misma estética que la pantalla de bienvenida. No tiene sedes propias.
+     */
+    val MIXED = BrandTheme(
+        id = "mixed",
+        name = "Todas las sedes",
+        primaryColor = c("#2A3A4E"),      // botones pizarra
+        onPrimaryColor = c("#F4F1EA"),
+        backgroundColor = c("#16212E"),   // azul noche
+        statusBoxColor = c("#223347"),
+        tonalColor = c("#223347"),
+        textColor = c("#F4F1EA"),
+        logoRes = R.drawable.logo_alimentos_light,
+        sedes = emptyList(),
+        aliases = emptySet(),
+        statusBarColor = c("#16212E"),
+        disabledBg = c("#1B2838"),
+        disabledText = c("#5F6E7E"),
+        cardColor = c("#1E2C3C"),
+        headerColor = c("#F5A524")        // ámbar
+    )
+
+    /** Marcas con sedes. La primera es la marca por defecto. */
     val ALL: List<BrandTheme> = listOf(ALIMENTOS, PILAR, VESUVIO, TRINCHERO)
     val DEFAULT: BrandTheme = ALIMENTOS
 
     fun allSedes(): List<Sede> = ALL.flatMap { it.sedes }
 
-    fun byId(id: String?): BrandTheme = ALL.firstOrNull { it.id == id } ?: DEFAULT
+    fun byId(id: String?): BrandTheme = (ALL + MIXED).firstOrNull { it.id == id } ?: DEFAULT
 
     fun brandOf(sede: Sede): BrandTheme = ALL.first { sede in it.sedes }
 
@@ -136,24 +161,24 @@ object Brands {
 
     /**
      * Tema a aplicar según las sedes permitidas:
-     *  - todas las sedes pertenecen a una sola marca distinta de la por defecto -> esa marca
-     *  - en cualquier otro caso (vacío, TODAS, mezcla) -> marca por defecto
+     *  - vacío -> marca por defecto
+     *  - todas las sedes de una sola marca -> esa marca
+     *  - sedes de varias marcas (o TODAS) -> tema mixto
      */
     fun resolveTheme(allowed: Set<Sede>): BrandTheme {
         if (allowed.isEmpty()) return DEFAULT
         val brands = allowed.map { brandOf(it) }.toSet()
-        return if (brands.size == 1 && brands.first() != DEFAULT) brands.first() else DEFAULT
+        return if (brands.size == 1) brands.first() else MIXED
     }
 
     /**
      * Sedes que se muestran en pantalla (habilitadas o en gris):
-     *  - marca específica -> solo sus sedes
-     *  - marca por defecto -> sus sedes + las de cualquier otra marca en la que el usuario tenga permiso
+     *  - marca concreta -> todas sus sedes
+     *  - tema mixto -> todas las sedes de cada marca en la que el usuario tenga permiso
      */
     fun visibleSedes(allowed: Set<Sede>, brand: BrandTheme): List<Sede> {
-        if (brand != DEFAULT) return brand.sedes
-        val others = ALL.filter { it != DEFAULT && it.sedes.any { s -> s in allowed } }
-        return DEFAULT.sedes + others.flatMap { it.sedes }
+        if (brand != MIXED) return brand.sedes
+        return ALL.filter { b -> b.sedes.any { it in allowed } }.flatMap { it.sedes }
     }
 
     /** Traduce una palabra de la hoja de permisos (ya normalizada) a sedes. */
