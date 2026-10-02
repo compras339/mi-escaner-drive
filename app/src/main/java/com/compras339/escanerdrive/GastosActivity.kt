@@ -44,9 +44,9 @@ import java.util.Locale
 
 /**
  * Pantalla GASTOS: clasifica un soporte (sede/mixto, condición, moneda) antes de escanearlo
- * y lo guarda en Drive con nombre y carpeta descriptivos:
+ * y lo guarda en Drive con un nombre descriptivo:
  *   GASTO_{SEDE}_{CONDICION}_{MONEDA}_{AAAA-MM-DD}.jpg
- *   Gastos / {Año} / {MM Mes} / {Marca} / {Sede} / {Contado|Crédito}
+ * en la carpeta  {facturas} / GASTOS OPERATIVOS / {DD-MM-AAAA}
  */
 class GastosActivity : AppCompatActivity() {
 
@@ -373,22 +373,14 @@ class GastosActivity : AppCompatActivity() {
         return "GASTO_${sedeTag}_${condTag}_${curTag}_$date.jpg"
     }
 
-    private fun buildFolderPath(): List<String> {
-        val c = Calendar.getInstance()
-        val year = c.get(Calendar.YEAR).toString()
-        val month = String.format(Locale.ROOT, "%02d %s", c.get(Calendar.MONTH) + 1, MESES[c.get(Calendar.MONTH)])
-        val sedePart = if (mixto) listOf("Mixto") else Brands.gastoFolder(selected.first())
-        val condPart = if (cond == "credito") "Crédito" else "Contado"
-        return listOf(year, month) + sedePart + condPart
-    }
+    /** Carpeta destino: GASTOS OPERATIVOS / DD-MM-AAAA (dentro de la carpeta de facturas). */
+    private fun buildFolderPath(): List<String> =
+        listOf(MainActivity.GASTOS_SUBFOLDER, DriveHelper.todayFolderName())
 
     // ---------- Escaneo y guardado ----------
 
     private fun startScanner() {
         if (missing().isNotEmpty()) return
-        if (MainActivity.FOLDER_ID_GASTOS.startsWith("AQUI_")) {
-            toast("Falta configurar la carpeta raíz de Gastos (FOLDER_ID_GASTOS)"); return
-        }
         setProcessing(true)
         val options = GmsDocumentScannerOptions.Builder()
             .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
@@ -415,13 +407,13 @@ class GastosActivity : AppCompatActivity() {
                         .apply { selectedAccount = account.account }
                     val drive = Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
                         .setApplicationName("DocScanner").build()
-                    val parentId = DriveHelper.ensureFolderPath(drive, MainActivity.FOLDER_ID_GASTOS, path)
+                    val parentId = DriveHelper.ensureFolderPath(drive, MainActivity.FOLDER_ID, path)
                     val metadata = DriveFile().apply { name = fileName; mimeType = MIME_JPEG; parents = listOf(parentId) }
                     val stream = contentResolver.openInputStream(uri) ?: throw IOException("No se pudo leer la imagen")
                     stream.use { drive.files().create(metadata, InputStreamContent(MIME_JPEG, it)).setFields("id, name").execute() }
                 }
                 setProcessing(false)
-                showSaved(fileName, ("Gastos" + " › " + path.joinToString(" › ")))
+                showSaved(fileName, path.joinToString(" › "))
             } catch (e: Exception) {
                 Log.e(TAG, "Error al guardar gasto", e)
                 setProcessing(false)

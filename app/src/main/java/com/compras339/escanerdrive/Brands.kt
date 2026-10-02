@@ -190,11 +190,14 @@ object Brands {
     // ---------- Módulos (columna "Módulos" de la hoja de permisos) ----------
     const val MODULE_GASTOS = "GASTOS"
     const val MODULE_CIERRE = "CIERRE"
+    /** Acceso exclusivo a Gastos: oculta escaneo, cierre y galería; abre Gastos al entrar. */
+    const val MODULE_SOLO_GASTOS = "SOLO_GASTOS"
     val ALL_MODULES = setOf(MODULE_GASTOS, MODULE_CIERRE)
 
     /** Traduce una palabra de la hoja (ya normalizada) a módulos; vacío si no es un módulo. */
     fun modulesFromToken(normalizedToken: String): Set<String> = when (normalizedToken) {
         "gastos", "gasto" -> setOf(MODULE_GASTOS)
+        "sologastos", "sologasto", "gastossolo", "solo" -> setOf(MODULE_GASTOS, MODULE_SOLO_GASTOS)
         "cierre", "cierres", "cierredecaja" -> setOf(MODULE_CIERRE)
         "todos" -> ALL_MODULES
         else -> emptySet()
