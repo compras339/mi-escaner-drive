@@ -39,6 +39,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.Scope
 import com.google.android.material.button.MaterialButton
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
@@ -121,6 +122,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvWelcomeSubtitle: TextView
     private lateinit var loadingBar: View
     private lateinit var btnWelcomeSignIn: MaterialButton
+    private lateinit var btnWelcomeLoading: GlowBorderLayout
+    private lateinit var tvWelcomeLoading: TextView
     private val uiHandler = Handler(Looper.getMainLooper())
     private var dotsRunnable: Runnable? = null
     private var barAnimator: ObjectAnimator? = null
@@ -151,6 +154,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: ApiException) {
                 Log.e(TAG, "Fallo en Google Sign-In. Código: ${e.statusCode}", e)
                 onSignedOut()
+                if (e.statusCode == GoogleSignInStatusCodes.SIGN_IN_CANCELLED) return@registerForActivityResult
                 showWelcome(
                     loading = false,
                     error = "Error al iniciar sesión (código ${e.statusCode}). " +
@@ -206,6 +210,8 @@ class MainActivity : AppCompatActivity() {
         tvWelcomeSubtitle = findViewById(R.id.tvWelcomeSubtitle)
         loadingBar = findViewById(R.id.loadingBar)
         btnWelcomeSignIn = findViewById(R.id.btnWelcomeSignIn)
+        btnWelcomeLoading = findViewById(R.id.btnWelcomeLoading)
+        tvWelcomeLoading = findViewById(R.id.tvWelcomeLoading)
         setupChefWebView()
         btnWelcomeSignIn.setOnClickListener { signIn() }
         btnCierre.setOnClickListener { onCierreClicked() }
@@ -256,7 +262,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun signIn() {
-        setStatus("Abriendo inicio de sesión de Google...")
+        showWelcome(loading = true)
         signInLauncher.launch(googleSignInClient.signInIntent)
     }
 
@@ -552,7 +558,7 @@ class MainActivity : AppCompatActivity() {
                 tvWelcomeSubtitle.setTextColor(WELCOME_ACCENT)
             }
             loading -> {
-                tvWelcomeSubtitle.text = "Cargando tus permisos y preparando tu cocina."
+                tvWelcomeSubtitle.text = "Iniciando sesión con el correo que seleccionaste. Esto tomará solo un momento."
                 tvWelcomeSubtitle.setTextColor(WELCOME_SUBTLE)
             }
             else -> {
@@ -560,8 +566,9 @@ class MainActivity : AppCompatActivity() {
                 tvWelcomeSubtitle.setTextColor(WELCOME_SUBTLE)
             }
         }
-        btnWelcomeSignIn.visibility = if (loading) View.INVISIBLE else View.VISIBLE
+        btnWelcomeSignIn.visibility = if (loading) View.GONE else View.VISIBLE
         btnWelcomeSignIn.isEnabled = !loading
+        btnWelcomeLoading.visibility = if (loading) View.VISIBLE else View.GONE
         startWelcomeAnimations()
     }
 
@@ -579,7 +586,9 @@ class MainActivity : AppCompatActivity() {
             val base = "Calentando la sartén"
             dotsRunnable = object : Runnable {
                 override fun run() {
-                    tvWelcomeHeadline.text = base + ".".repeat(step % 4)
+                    val dots = ".".repeat(step % 4)
+                    tvWelcomeHeadline.text = base + dots
+                    tvWelcomeLoading.text = "Iniciando sesión" + dots
                     step++
                     uiHandler.postDelayed(this, 400L)
                 }
