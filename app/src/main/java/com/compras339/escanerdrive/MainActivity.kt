@@ -1,5 +1,8 @@
 package com.compras339.escanerdrive
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -9,10 +12,14 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -24,6 +31,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -100,6 +108,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGallery: MaterialButton
     private lateinit var btnSignIn: MaterialButton
     private lateinit var tvCredit: TextView
+    private lateinit var contentLayout: ConstraintLayout
+
+    // Pantalla de espera / inicio de sesión
+    private lateinit var welcomeLayout: LinearLayout
+    private lateinit var webChef: WebView
+    private lateinit var tvWelcomeHeadline: TextView
+    private lateinit var tvWelcomeSubtitle: TextView
+    private lateinit var loadingBar: View
+    private lateinit var btnWelcomeSignIn: MaterialButton
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private var dotsRunnable: Runnable? = null
+    private var barAnimator: ObjectAnimator? = null
+    private val WELCOME_BG = Color.parseColor("#16212E")
+    private val WELCOME_ACCENT = Color.parseColor("#F5A524")
+    private val WELCOME_SUBTLE = Color.parseColor("#B7C2CE")
 
     // ---------- Estado ----------
     private lateinit var googleSignInClient: GoogleSignInClient
@@ -123,9 +146,10 @@ class MainActivity : AppCompatActivity() {
             } catch (e: ApiException) {
                 Log.e(TAG, "Fallo en Google Sign-In. Código: ${e.statusCode}", e)
                 onSignedOut()
-                setStatus(
-                    "Error al iniciar sesión (código ${e.statusCode})\n\n" +
-                        "Paquete: $packageName\nSHA-1 de esta app:\n${getSigningSha1()}"
+                showWelcome(
+                    loading = false,
+                    error = "Error al iniciar sesión (código ${e.statusCode}). " +
+                        "Paquete: $packageName · SHA-1: ${getSigningSha1()}"
                 )
             }
         }
@@ -168,9 +192,20 @@ class MainActivity : AppCompatActivity() {
         btnGallery = findViewById(R.id.btnGallery)
         btnSignIn = findViewById(R.id.btnSignIn)
         tvCredit = findViewById(R.id.tvCredit)
+        contentLayout = findViewById(R.id.contentLayout)
+
+        welcomeLayout = findViewById(R.id.welcomeLayout)
+        webChef = findViewById(R.id.webChef)
+        tvWelcomeHeadline = findViewById(R.id.tvWelcomeHeadline)
+        tvWelcomeSubtitle = findViewById(R.id.tvWelcomeSubtitle)
+        loadingBar = findViewById(R.id.loadingBar)
+        btnWelcomeSignIn = findViewById(R.id.btnWelcomeSignIn)
+        setupChefWebView()
+        btnWelcomeSignIn.setOnClickListener { signIn() }
 
         setupGoogleSignIn()
         applyTheme(Brands.DEFAULT)
+        showWelcome(loading = false)
 
         btnSignIn.setOnClickListener { if (currentAccount == null) signIn() else signOut() }
         // Mantener pulsado el botón de cuenta vuelve a leer la hoja de permisos
@@ -227,6 +262,7 @@ class MainActivity : AppCompatActivity() {
     private fun onSignedIn(account: GoogleSignInAccount) {
         currentAccount = account
         btnSignIn.text = "Cerrar sesión (${account.email ?: "cuenta"})"
+        showWelcome(loading = true)
         loadPermissions(account)
     }
 
@@ -240,6 +276,7 @@ class MainActivity : AppCompatActivity() {
         scrollSedes.visibility = View.GONE
         btnGallery.visibility = View.GONE
         hideStatus()
+        showWelcome(loading = false)
     }
 
     // ---------- Permisos y tema ----------
@@ -261,6 +298,7 @@ class MainActivity : AppCompatActivity() {
             scrollSedes.visibility = View.VISIBLE
             btnGallery.visibility = View.VISIBLE
             showLoading(false)
+            showContent()
 
             when {
                 error != null -> setStatus("No se pudieron cargar los permisos:\n$error\n\nMantén pulsado el botón de cuenta para reintentar.")
@@ -337,7 +375,9 @@ class MainActivity : AppCompatActivity() {
             ivBackground.setImageDrawable(null)
             ivBackground.visibility = View.GONE
         }
-        window.statusBarColor = brand.statusBarColor
+        if (!::welcomeLayout.isInitialized || welcomeLayout.visibility != View.VISIBLE) {
+            window.statusBarColor = brand.statusBarColor
+        }
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
 
         tvTitle.setTextColor(brand.primaryColor)
@@ -443,6 +483,96 @@ class MainActivity : AppCompatActivity() {
         val signedIn = currentAccount != null
         btnGallery.isEnabled = signedIn
         sedeButtons.forEach { (sede, button) -> button.isEnabled = signedIn && sede in allowedSedes }
+    }
+
+    // ---------- Pantalla de espera / bienvenida ----------
+
+    @SuppressLint("ClickableViewAccessibility", "SetJavaScriptEnabled")
+    private fun setupChefWebView() {
+        webChef.setBackgroundColor(Color.TRANSPARENT)
+        webChef.isVerticalScrollBarEnabled = false
+        webChef.isHorizontalScrollBarEnabled = false
+        webChef.settings.javaScriptEnabled = false
+        webChef.settings.loadWithOverviewMode = true
+        webChef.settings.useWideViewPort = true
+        webChef.setOnTouchListener { _, _ -> true }   // sin interacción
+        webChef.loadUrl("file:///android_asset/chef.html")
+    }
+
+    /**
+     * Muestra la pantalla de espera.
+     * @param loading true mientras se cargan los permisos (oculta el botón).
+     * @param error mensaje opcional (p. ej. fallo de inicio de sesión).
+     */
+    private fun showWelcome(loading: Boolean, error: String? = null) {
+        welcomeLayout.visibility = View.VISIBLE
+        contentLayout.visibility = View.GONE
+        window.statusBarColor = WELCOME_BG
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
+
+        when {
+            error != null -> {
+                tvWelcomeSubtitle.text = error
+                tvWelcomeSubtitle.setTextColor(WELCOME_ACCENT)
+            }
+            loading -> {
+                tvWelcomeSubtitle.text = "Cargando tus permisos y preparando tu cocina."
+                tvWelcomeSubtitle.setTextColor(WELCOME_SUBTLE)
+            }
+            else -> {
+                tvWelcomeSubtitle.text = "Vincula tu cuenta de Google para empezar a escanear tus compras."
+                tvWelcomeSubtitle.setTextColor(WELCOME_SUBTLE)
+            }
+        }
+        btnWelcomeSignIn.visibility = if (loading) View.INVISIBLE else View.VISIBLE
+        btnWelcomeSignIn.isEnabled = !loading
+        startWelcomeAnimations()
+    }
+
+    private fun showContent() {
+        stopWelcomeAnimations()
+        welcomeLayout.visibility = View.GONE
+        contentLayout.visibility = View.VISIBLE
+        window.statusBarColor = currentBrand.statusBarColor
+    }
+
+    private fun startWelcomeAnimations() {
+        // Puntos suspensivos
+        if (dotsRunnable == null) {
+            var step = 0
+            val base = "Calentando la sartén"
+            dotsRunnable = object : Runnable {
+                override fun run() {
+                    tvWelcomeHeadline.text = base + ".".repeat(step % 4)
+                    step++
+                    uiHandler.postDelayed(this, 400L)
+                }
+            }
+            uiHandler.post(dotsRunnable!!)
+        }
+        // Barra de carga
+        if (barAnimator == null) {
+            val dp = resources.displayMetrics.density
+            barAnimator = ObjectAnimator.ofFloat(loadingBar, View.TRANSLATION_X, -56f * dp, 140f * dp).apply {
+                duration = 1600L
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = AccelerateDecelerateInterpolator()
+                start()
+            }
+        }
+    }
+
+    private fun stopWelcomeAnimations() {
+        dotsRunnable?.let { uiHandler.removeCallbacks(it) }
+        dotsRunnable = null
+        barAnimator?.cancel()
+        barAnimator = null
+    }
+
+    override fun onDestroy() {
+        stopWelcomeAnimations()
+        webChef.destroy()
+        super.onDestroy()
     }
 
     // ---------- Escáner ----------

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+html,body{margin:0;padding:0;background:transparent;overflow:hidden;width:100%;height:100%}
+.chef{--dur:1.4s;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+
+a{color:#F5A524}a:hover{color:#FFC65C}
+
+.chef svg{display:block;overflow:visible}
+.arm{transform-box:view-box;transform-origin:172px 207px;animation:ae-toss var(--dur) ease-in-out infinite}
+.food{transform-box:fill-box;transform-origin:50% 50%;animation:ae-flip var(--dur) ease-in-out infinite}
+.food.f2{animation-delay:calc(var(--dur) * 0.06)}
+.food.f3{animation-delay:calc(var(--dur) * 0.12)}
+.food.f4{animation-delay:calc(var(--dur) * 0.03)}
+.flame{transform-box:fill-box;transform-origin:50% 100%;animation:ae-flick .35s ease-in-out infinite alternate}
+.flame.b{animation-duration:.27s}
+.flame.c{animation-duration:.42s}
+.steam{fill:none;stroke:#C9D3DE;stroke-width:3;stroke-linecap:round;opacity:0;animation:ae-steam 2.4s ease-out infinite}
+.steam.s2{animation-delay:.8s}
+.steam.s3{animation-delay:1.6s}
+.head{transform-box:view-box;transform-origin:130px 160px;animation:ae-bob var(--dur) ease-in-out infinite}
+.eye{transform-box:fill-box;transform-origin:50% 50%;animation:ae-blink 4s infinite}
+.sleeve{fill:none;stroke:#F5F1EA;stroke-width:20;stroke-linecap:round;stroke-linejoin:round}
+.handle{fill:none;stroke:#3A3F47;stroke-width:7;stroke-linecap:round}
+.smile{fill:none;stroke:#5A2E1C;stroke-width:2.5;stroke-linecap:round}
+
+
+
+
+
+
+
+@keyframes ae-toss{0%,100%{transform:rotate(0deg)}30%{transform:rotate(-13deg)}48%{transform:rotate(5deg)}62%{transform:rotate(0deg)}}
+@keyframes ae-flip{0%,28%{transform:translate(0,0) rotate(0deg)}52%{transform:translate(-8px,-64px) rotate(200deg)}80%,100%{transform:translate(0,0) rotate(360deg)}}
+@keyframes ae-flick{from{transform:scale(1,1)}to{transform:scale(1.1,.78)}}
+@keyframes ae-steam{0%{opacity:0;transform:translateY(0)}25%{opacity:.55}100%{opacity:0;transform:translateY(-34px)}}
+@keyframes ae-bob{0%,100%{transform:translateY(0) rotate(0deg)}30%{transform:translateY(-2px) rotate(-3deg)}}
+@keyframes ae-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+
+
+@media (prefers-reduced-motion: reduce){.arm,.food,.flame,.steam,.head,.eye,.bar,.steam{opacity:.4}}
+
+</style></head>
+<body><div class="chef"><svg viewBox="0 0 340 300" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Chef salteando comida en una sartén">
+<circle cx="170" cy="160" r="128" fill="#1E2C3C"></circle>
+<circle cx="170" cy="160" r="96" fill="#223347"></circle>
+<path class="steam" d="M250 150 q-6 -8 0 -16 q6 -8 0 -16"></path>
+<path class="steam s2" d="M266 146 q-6 -8 0 -16 q6 -8 0 -16"></path>
+<path class="steam s3" d="M282 150 q-6 -8 0 -16 q6 -8 0 -16"></path>
+<path d="M78 300 Q78 206 130 198 Q182 206 182 300 Z" fill="#F5F1EA"></path>
+<path d="M130 198 L112 300 L148 300 Z" fill="#E6E0D4"></path>
+<circle cx="120" cy="236" r="3.2" fill="#9AA6B3"></circle>
+<circle cx="140" cy="236" r="3.2" fill="#9AA6B3"></circle>
+<circle cx="120" cy="260" r="3.2" fill="#9AA6B3"></circle>
+<circle cx="140" cy="260" r="3.2" fill="#9AA6B3"></circle>
+<path class="sleeve" d="M92 214 L78 252 L96 270"></path>
+<circle cx="99" cy="272" r="8" fill="#E2A97E"></circle>
+<path d="M112 196 L148 196 L130 214 Z" fill="#F5A524"></path>
+<g class="head">
+<rect x="122" y="172" width="16" height="16" fill="#D99A6C"></rect>
+<circle cx="130" cy="150" r="30" fill="#E8B48A"></circle>
+<circle cx="100" cy="152" r="6" fill="#E2A97E"></circle>
+<circle cx="160" cy="152" r="6" fill="#E2A97E"></circle>
+<ellipse class="eye" cx="119" cy="148" rx="3" ry="3.6" fill="#2A1A12"></ellipse>
+<ellipse class="eye" cx="141" cy="148" rx="3" ry="3.6" fill="#2A1A12"></ellipse>
+<circle cx="112" cy="160" r="5" fill="#EE9A86" opacity=".55"></circle>
+<circle cx="148" cy="160" r="5" fill="#EE9A86" opacity=".55"></circle>
+<path d="M118 162 Q124 156 130 161 Q136 156 142 162 Q136 166 130 163 Q124 166 118 162 Z" fill="#5A2E1C"></path>
+<path class="smile" d="M124 169 Q130 174 136 169"></path>
+<rect x="104" y="114" width="52" height="16" rx="4" fill="#F5F1EA"></rect>
+<rect x="104" y="124" width="52" height="5" fill="#E6E0D4"></rect>
+<circle cx="112" cy="104" r="15" fill="#FFFFFF"></circle>
+<circle cx="130" cy="94" r="19" fill="#FFFFFF"></circle>
+<circle cx="148" cy="104" r="15" fill="#FFFFFF"></circle>
+</g>
+<rect x="232" y="246" width="64" height="10" rx="5" fill="#3A3F47"></rect>
+<path class="flame" d="M252 246 C246 236 252 226 256 220 C258 230 266 234 262 246 Z" fill="#F5A524"></path>
+<path class="flame b" d="M262 246 C256 232 264 220 268 212 C272 226 280 234 274 246 Z" fill="#F26B3A"></path>
+<path class="flame c" d="M274 246 C270 236 276 228 280 222 C282 232 290 236 284 246 Z" fill="#F5A524"></path>
+<path class="flame b" d="M264 246 C262 238 266 232 268 228 C270 234 274 240 272 246 Z" fill="#FFE08A"></path>
+<g class="arm">
+<path class="sleeve" d="M168 214 L196 232 L214 214"></path>
+<circle cx="216" cy="212" r="8" fill="#E2A97E"></circle>
+<path class="handle" d="M220 210 L236 206"></path>
+<g class="food"><circle cx="256" cy="200" r="6" fill="#E5483B"></circle></g>
+<g class="food f2"><rect x="266" y="196" width="10" height="7" rx="2" fill="#5DBB63"></rect></g>
+<g class="food f3"><circle cx="279" cy="201" r="4.5" fill="#FFD25A"></circle></g>
+<g class="food f4"><path d="M244 203 Q248 194 256 198 Q250 200 250 206 Z" fill="#F59A6B"></path></g>
+<path d="M234 204 L298 204 Q296 224 266 224 Q236 224 234 204 Z" fill="#2B2F36"></path>
+<rect x="232" y="201" width="68" height="5" rx="2.5" fill="#4A515C"></rect>
+</g>
+</svg></div></body></html>
