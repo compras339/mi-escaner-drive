@@ -359,13 +359,16 @@ class MainActivity : AppCompatActivity() {
                     // así que quitamos el prefijo "TFB " para que el botón respire.
                     text = if (compact && currentBrand == Brands.DEFAULT) sede.label.removePrefix("TFB ").trim() else sede.label
                     isAllCaps = false
-                    maxLines = 1
+                    // Nombres largos (p. ej. "TFB GUATAPARO") pueden ocupar dos líneas
+                    maxLines = 2
                     gravity = Gravity.CENTER
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) 13f else 15f)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) 12f else 15f)
+                    setPadding((8 * dp).toInt(), (10 * dp).toInt(), (8 * dp).toInt(), (10 * dp).toInt())
                     insetTop = 0; insetBottom = 0
-                    minHeight = (if (compact) 44 else 50).let { (it * dp).toInt() }
+                    minHeight = (if (compact) 48 else 50).let { (it * dp).toInt() }
                     cornerRadius = (24 * dp).toInt()
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    // Alto MATCH_PARENT: los dos botones de una misma fila quedan igual de altos
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
                         .apply { setMargins(gap, gap, gap, gap) }
                     isEnabled = sede in allowedSedes
                     setOnClickListener { startScanner(sede) }
