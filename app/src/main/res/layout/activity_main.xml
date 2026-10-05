@@ -214,31 +214,6 @@
         android:visibility="gone"
         tools:visibility="visible">
 
-        <!-- Opciones (se despliegan hacia la izquierda) -->
-        <LinearLayout
-            android:id="@+id/whatsappMenu"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:gravity="end"
-            android:orientation="vertical"
-            android:visibility="gone"
-            tools:visibility="visible">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnWaCompras"
-                style="@style/WaBubble"
-                android:text="Compras"
-                tools:ignore="HardcodedText" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnWaAdmin"
-                style="@style/WaBubble"
-                android:layout_marginTop="6dp"
-                android:text="Administración"
-                tools:ignore="HardcodedText" />
-        </LinearLayout>
-
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabWhatsapp"
             android:layout_width="wrap_content"

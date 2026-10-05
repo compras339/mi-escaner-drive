@@ -93,7 +93,6 @@ class MainActivity : AppCompatActivity() {
 
         /** Números de WhatsApp con código de país (58 = Venezuela), sin + ni espacios. */
         const val WHATSAPP_COMPRAS = "584244329297"
-        const val WHATSAPP_ADMIN = ""      // pendiente de definir
         const val WHATSAPP_TEXT = "Hola, escribo desde la app Escáner de Compras."
 
         const val EXTRA_BRAND_ID = "brand_id"
@@ -123,7 +122,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnCierre: MaterialButton
     private lateinit var btnGastos: MaterialButton
     private lateinit var fabWhatsapp: com.google.android.material.floatingactionbutton.FloatingActionButton
-    private lateinit var whatsappMenu: LinearLayout
     private lateinit var whatsappFloat: LinearLayout
     private lateinit var btnSignIn: MaterialButton
     private lateinit var tvCredit: TextView
@@ -219,7 +217,6 @@ class MainActivity : AppCompatActivity() {
         btnCierre = findViewById(R.id.btnCierre)
         btnGastos = findViewById(R.id.btnGastos)
         fabWhatsapp = findViewById(R.id.fabWhatsapp)
-        whatsappMenu = findViewById(R.id.whatsappMenu)
         whatsappFloat = findViewById(R.id.whatsappFloat)
         btnSignIn = findViewById(R.id.btnSignIn)
         tvCredit = findViewById(R.id.tvCredit)
@@ -236,8 +233,6 @@ class MainActivity : AppCompatActivity() {
         btnWelcomeSignIn.setOnClickListener { signIn() }
         btnCierre.setOnClickListener { onCierreClicked() }
         setupWhatsappBubble()
-        findViewById<MaterialButton>(R.id.btnWaCompras).setOnClickListener { openWhatsapp(WHATSAPP_COMPRAS, "Compras") }
-        findViewById<MaterialButton>(R.id.btnWaAdmin).setOnClickListener { openWhatsapp(WHATSAPP_ADMIN, "Administración") }
         btnGastos.setOnClickListener {
             startActivity(Intent(this, GastosActivity::class.java).apply {
                 putStringArrayListExtra(GastosActivity.EXTRA_SEDE_KEYS, ArrayList(allowedSedes.map { it.key }))
@@ -594,14 +589,14 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- WhatsApp ----------
 
-    /** Burbuja arrastrable verticalmente por el borde derecho; un toque sin arrastrar abre el menú. */
+    /** Burbuja arrastrable verticalmente por el borde derecho; un toque sin arrastrar abre WhatsApp de Compras. */
     @SuppressLint("ClickableViewAccessibility")
     private fun setupWhatsappBubble() {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
         var downY = 0f
         var startTy = 0f
         var moved = false
-        fabWhatsapp.setOnClickListener { toggleWhatsappMenu() }
+        fabWhatsapp.setOnClickListener { openWhatsapp(WHATSAPP_COMPRAS, "Compras") }
         fabWhatsapp.setOnTouchListener { v, ev ->
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -610,10 +605,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dy = ev.rawY - downY
-                    if (!moved && kotlin.math.abs(dy) > slop) {
-                        moved = true
-                        if (whatsappMenu.visibility == View.VISIBLE) toggleWhatsappMenu(show = false)
-                    }
+                    if (!moved && kotlin.math.abs(dy) > slop) moved = true
                     if (moved) {
                         val parent = whatsappFloat.parent as View
                         val minTy = -whatsappFloat.top.toFloat()
@@ -632,20 +624,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun toggleWhatsappMenu(show: Boolean = whatsappMenu.visibility != View.VISIBLE) {
-        if (show) {
-            whatsappMenu.alpha = 0f
-            whatsappMenu.translationX = 16f * resources.displayMetrics.density
-            whatsappMenu.visibility = View.VISIBLE
-            whatsappMenu.animate().alpha(1f).translationX(0f).setDuration(160L).start()
-        } else {
-            whatsappMenu.animate().alpha(0f).setDuration(120L)
-                .withEndAction { whatsappMenu.visibility = View.GONE }.start()
-        }
-    }
-
     private fun openWhatsapp(number: String, label: String) {
-        toggleWhatsappMenu(show = false)
         if (number.isBlank()) {
             Toast.makeText(this, "Número de $label pendiente de definir", Toast.LENGTH_SHORT).show(); return
         }
@@ -705,7 +684,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showContent() {
-        whatsappMenu.visibility = View.GONE
         // La burbuja de WhatsApp es para las sedes; el maestro (vista mixta) no la necesita
         whatsappFloat.visibility = if (currentBrand == Brands.MIXED) View.GONE else View.VISIBLE
         welcomeShowing = false
