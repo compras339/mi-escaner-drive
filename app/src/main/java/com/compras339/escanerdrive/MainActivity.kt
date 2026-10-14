@@ -95,6 +95,13 @@ class MainActivity : AppCompatActivity() {
         const val WHATSAPP_COMPRAS = "584244329297"
         const val WHATSAPP_TEXT = "Hola, escribo desde la app Escáner de Compras."
 
+        /**
+         * ID de la hoja "Permisos Escaner" (el de la URL de edición: docs.google.com/spreadsheets/d/{ID}/edit).
+         * La app la lee directamente por Drive (sin el retraso de la versión publicada).
+         * Cada usuario debe tener la hoja compartida al menos como Lector.
+         */
+        const val PERMISSIONS_SHEET_ID = "1C-Vu0VZ6aUGngFNJ-LXYSF9BaujQW-BUiOsO4X4Mdvc"
+
         const val EXTRA_BRAND_ID = "brand_id"
         const val EXTRA_SEDE_KEYS = "sede_keys"
 
@@ -376,14 +383,41 @@ class MainActivity : AppCompatActivity() {
 
     private fun fetchPermisos(email: String): Permisos {
         if (email == MASTER_EMAIL.lowercase(Locale.ROOT)) return Permisos(Brands.allSedes().toSet(), Brands.ALL_MODULES, null)
-        if (PERMISSIONS_CSV_URL.startsWith("AQUI_")) return Permisos(emptySet(), emptySet(), "Falta configurar PERMISSIONS_CSV_URL")
         return try {
-            val (sedes, modules) = parsePermissions(downloadText(PERMISSIONS_CSV_URL), email)
+            val (sedes, modules) = parsePermissions(downloadPermissionsCsv(), email)
             Permisos(sedes, modules, null)
         } catch (e: Exception) {
             Log.e(TAG, "Error al descargar permisos", e)
             Permisos(emptySet(), emptySet(), e.localizedMessage ?: "error de red")
         }
+    }
+
+    /**
+     * Obtiene el CSV de permisos. Primero por Drive (lectura inmediata de la hoja);
+     * si falla, usa la versión publicada en la web como respaldo.
+     */
+    private fun downloadPermissionsCsv(): String {
+        if (!PERMISSIONS_SHEET_ID.startsWith("AQUI_")) {
+            try {
+                val account = currentAccount ?: GoogleSignIn.getLastSignedInAccount(this)
+                if (account != null) {
+                    val credential = GoogleAccountCredential.usingOAuth2(this, listOf(DriveScopes.DRIVE))
+                        .apply { selectedAccount = account.account }
+                    val drive = Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
+                        .setApplicationName(APP_NAME).build()
+                    val csv = drive.files().export(PERMISSIONS_SHEET_ID, "text/csv")
+                        .executeMediaAsInputStream().bufferedReader().use { it.readText() }
+                    if (csv.isNotBlank()) {
+                        Log.i(TAG, "Permisos leídos por Drive")
+                        return csv
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "No se pudo leer la hoja por Drive; se usa la versión publicada", e)
+            }
+        }
+        if (PERMISSIONS_CSV_URL.startsWith("AQUI_")) throw IOException("Falta configurar PERMISSIONS_CSV_URL")
+        return downloadText(PERMISSIONS_CSV_URL)
     }
 
     private fun downloadText(baseUrl: String): String {
