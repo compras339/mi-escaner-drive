@@ -11,8 +11,10 @@ android {
         applicationId = "com.compras339.escanerdrive"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // Versionado: GitHub Actions pasa -PappVersionCode (número de build creciente)
+        // y -PappVersionName (contenido del archivo VERSION). En local se usan los valores por defecto.
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("appVersionName") as String?) ?: "dev"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

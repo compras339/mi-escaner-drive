@@ -157,6 +157,8 @@ class MainActivity : AppCompatActivity() {
     private var autoOpenGastos = false
     /** true mientras la pantalla de espera está visible (para no pisar su barra de estado). */
     private var welcomeShowing = false
+    /** Solo comprobamos actualizaciones una vez por apertura de la app. */
+    private var updateChecked = false
     private val isBusy get() = progressBar.visibility == View.VISIBLE
 
     // ---------- Launchers ----------
@@ -683,7 +685,45 @@ class MainActivity : AppCompatActivity() {
         startWelcomeAnimations()
     }
 
+    // ---------- Actualización automática ----------
+
+    private fun checkForUpdates() {
+        if (updateChecked) return
+        updateChecked = true
+        lifecycleScope.launch {
+            val latest = UpdateChecker.fetchLatest() ?: return@launch
+            val current = UpdateChecker.currentBuild(this@MainActivity)
+            if (latest.build <= current) return@launch
+            androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                .setTitle("Nueva versión disponible")
+                .setMessage("Hay una versión nueva de la app (${latest.version}, build ${latest.build}).\n" +
+                    "Tienes instalada la build $current.\n\nLa actualización se instala encima; no pierdes la sesión.")
+                .setPositiveButton("Actualizar") { _, _ -> startUpdate(latest) }
+                .setNegativeButton("Más tarde", null)
+                .show()
+        }
+    }
+
+    private fun startUpdate(info: UpdateChecker.Info) {
+        showLoading(true)
+        setStatus("Descargando actualización… 0 %")
+        lifecycleScope.launch {
+            try {
+                UpdateChecker.downloadAndInstall(this@MainActivity, info) { pct ->
+                    setStatus("Descargando actualización… $pct %")
+                }
+                showLoading(false)
+                setStatus("Descarga lista. Pulsa «Instalar» en la ventana de Android.")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error al actualizar", e)
+                showLoading(false)
+                setStatus("No se pudo actualizar: ${e.localizedMessage}\nPuedes descargarla desde el enlace de Releases.")
+            }
+        }
+    }
+
     private fun showContent() {
+        checkForUpdates()
         // La burbuja de WhatsApp es para las sedes; el maestro (vista mixta) no la necesita
         whatsappFloat.visibility = if (currentBrand == Brands.MIXED) View.GONE else View.VISIBLE
         welcomeShowing = false

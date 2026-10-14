@@ -5,6 +5,8 @@
     <!-- Necesario para Google Sign-In y la subida a Google Drive -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Permite abrir el instalador con el APK descargado (actualización dentro de la app) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!--
         La cámara la gestiona el propio módulo de Google Play Services (Document Scanner),
@@ -57,6 +59,17 @@
             android:label="Mis escaneos"
             android:parentActivityName=".MainActivity"
             android:screenOrientation="portrait" />
+
+        <!-- Comparte el APK descargado con el instalador del sistema -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>
