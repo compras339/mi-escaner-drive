@@ -142,6 +142,7 @@ class GastosActivity : AppCompatActivity() {
         // Sedes disponibles para este usuario (vienen de MainActivity)
         val keys = intent.getStringArrayListExtra(EXTRA_SEDE_KEYS) ?: arrayListOf()
         availableSedes = keys.mapNotNull { Brands.sedeByKey(it) }.ifEmpty { Brands.allSedes() }
+            .filter { Brands.brandOf(it) != Brands.PROYECTOS } + Brands.PROYECTOS.sedes   // proyectos siempre al final
 
         segUna.setOnClickListener { setMixto(false) }
         segMixto.setOnClickListener { setMixto(true) }
@@ -198,7 +199,9 @@ class GastosActivity : AppCompatActivity() {
             layoutGroups.addView(row)
         }
         large.forEach { (brand, sedes) ->
-            layoutGroups.addView(groupCard(brand, sedes, columns = if (sedes.size == 2) 2 else 3).apply {
+            // Proyectos: nombres largos, un botón por fila
+            val cols = if (brand == Brands.PROYECTOS) 1 else if (sedes.size == 2) 2 else 3
+            layoutGroups.addView(groupCard(brand, sedes, columns = cols).apply {
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                     .apply { setMargins(0, 0, 0, (8 * dp).toInt()) }
             })
