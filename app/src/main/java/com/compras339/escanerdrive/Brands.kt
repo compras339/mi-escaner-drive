@@ -153,6 +153,28 @@ object Brands {
         headerColor = c("#F5A524")        // ámbar
     )
 
+    /**
+     * Proyectos especiales que solo aparecen en la pantalla de Gastos (no son sedes de escaneo).
+     * Sus archivos usan la clave como etiqueta: GASTO_MEJORA-CP_…, GASTO_AMPLIACION-VESUVIO-VINEDO_…
+     */
+    val PROYECTOS = BrandTheme(
+        id = "proyectos",
+        name = "Proyectos",
+        primaryColor = c("#F5A524"),
+        onPrimaryColor = c("#16212E"),
+        backgroundColor = c("#16212E"),
+        statusBoxColor = c("#223347"),
+        tonalColor = c("#223347"),
+        textColor = c("#F4F1EA"),
+        logoRes = R.drawable.logo_alimentos_light,
+        sedes = listOf(
+            Sede("MEJORA-CP", "MEJORA CP", setOf("mejoracp"), short = "Mejora CP"),
+            Sede("AMPLIACION-VESUVIO-VINEDO", "AMPLIACIÓN VESUVIO VIÑEDO", setOf("ampliacionvesuviovinedo", "ampliacionvinedo"), short = "Ampliación Vesuvio Viñedo")
+        ),
+        aliases = emptySet(),
+        tag = ""
+    )
+
     /** Marcas con sedes. La primera es la marca por defecto. */
     val ALL: List<BrandTheme> = listOf(ALIMENTOS, PILAR, VESUVIO, TRINCHERO)
     val DEFAULT: BrandTheme = ALIMENTOS
@@ -161,9 +183,9 @@ object Brands {
 
     fun byId(id: String?): BrandTheme = (ALL + MIXED).firstOrNull { it.id == id } ?: DEFAULT
 
-    fun brandOf(sede: Sede): BrandTheme = ALL.first { sede in it.sedes }
+    fun brandOf(sede: Sede): BrandTheme = (ALL + PROYECTOS).first { sede in it.sedes }
 
-    fun sedeByKey(key: String): Sede? = allSedes().firstOrNull { it.key.equals(key, ignoreCase = true) }
+    fun sedeByKey(key: String): Sede? = (allSedes() + PROYECTOS.sedes).firstOrNull { it.key.equals(key, ignoreCase = true) }
 
     /**
      * Tema a aplicar según las sedes permitidas:
@@ -206,6 +228,7 @@ object Brands {
     /** Etiqueta de sede para nombres de archivo de Gastos: AE-CP, VESUVIO-SAMBIL, PILARYJUANITO... */
     fun gastoTag(sede: Sede): String {
         val brand = brandOf(sede)
+        if (brand.tag.isEmpty()) return sede.key          // proyectos: la clave ya es la etiqueta
         val solo = sede.short.equals(brand.name, ignoreCase = true)
         return if (solo) brand.tag else brand.tag + "-" + slug(sede.short)
     }
