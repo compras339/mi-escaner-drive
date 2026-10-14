@@ -74,11 +74,11 @@ object Brands {
         textColor = c("#3A1A14"),
         logoRes = R.drawable.logo_trinchero,
         sedes = listOf(
-            Sede("TFBEventos", "TFB EVENTOS", setOf("tfbeventos", "eventos"), short = "Eventos"),
+            Sede("TFBEventos", "TFB EVENTOS", setOf("tfbeventos", "eventos", "evento", "tfbevento"), short = "Eventos"),
             Sede("TFBGuataparo", "TFB GUATAPARO", setOf("tfbguataparo", "guataparo"), short = "Guataparo"),
-            Sede("TFBLaGranja", "TFB LA GRANJA", setOf("tfblagranja", "lagranja", "granja"), short = "La Granja"),
-            Sede("TFBLaVina", "TFB LA VIÑA", setOf("tfblavina", "lavina"), short = "La Viña"),
-            Sede("TFBManongo", "TFB MAÑONGO", setOf("tfbmanongo", "manongo"), short = "Mañongo"),
+            Sede("TFBLaGranja", "TFB LA GRANJA", setOf("tfblagranja", "lagranja", "granja", "tfbgranja"), short = "La Granja"),
+            Sede("TFBLaVina", "TFB LA VIÑA", setOf("tfblavina", "lavina", "vina", "tfbvina"), short = "La Viña"),
+            Sede("TFBManongo", "TFB MAÑONGO", setOf("tfbmanongo", "manongo", "tfbmanongos"), short = "Mañongo"),
             Sede("TFBSambil", "TFB SAMBIL", setOf("tfbsambil"), short = "Sambil")
         ),
         aliases = setOf("tfb", "trinchero"),
@@ -96,7 +96,7 @@ object Brands {
         textColor = c("#F3EADB"),         // crema
         logoRes = R.drawable.logo_pilar,
         sedes = listOf(
-            Sede("Pilar", "PILAR Y JUANITO", setOf("pilar", "pilaryjuanito"), short = "Pilar y Juanito")
+            Sede("Pilar", "PILAR Y JUANITO", setOf("pilar", "pilaryjuanito", "pilarjuanito", "pyj"), short = "Pilar y Juanito")
         ),
         aliases = setOf("pilaryjuanito", "asador"),
         backgroundRes = R.drawable.bg_brasas,
@@ -118,7 +118,7 @@ object Brands {
         textColor = c("#E6F2FA"),
         logoRes = R.drawable.logo_vesuvio,
         sedes = listOf(
-            Sede("VVinedo", "VESUVIO VIÑEDO", setOf("vvinedo", "vinedo", "vvinedos", "vinedos", "vesuviovinedo"), short = "Viñedo"),
+            Sede("VVinedo", "VESUVIO VIÑEDO", setOf("vvinedo", "vinedo", "vvinedos", "vinedos", "vesuviovinedo", "vesuviovinedos"), short = "Viñedo"),
             Sede("VSambil", "VESUVIO SAMBIL", setOf("vsambil", "sambil", "vesuviosambil"), short = "Sambil")
         ),
         aliases = setOf("vesuvio", "pizzeria"),
