@@ -158,7 +158,7 @@ class MainActivity : AppCompatActivity() {
     private val sedeButtons = mutableMapOf<Sede, MaterialButton>()
     private var selectedSede: Sede? = null
     private var selectedIsCierre = false
-    private var pendingUploadUri: Uri? = null
+    private var pendingUploadUris: List<Uri>? = null
     private var lastPermissionsLoadAt = 0L
     /** Tras iniciar sesión, si el usuario es "solo Gastos" abrimos esa pantalla automáticamente una vez. */
     private var autoOpenGastos = false
@@ -192,19 +192,19 @@ class MainActivity : AppCompatActivity() {
             if (result.resultCode != RESULT_OK) {
                 showLoading(false); setStatus("Escaneo cancelado"); return@registerForActivityResult
             }
-            val imageUri = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
-                ?.pages?.firstOrNull()?.imageUri
-            if (imageUri == null) {
+            val uris = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+                ?.pages?.mapNotNull { it.imageUri } ?: emptyList()
+            if (uris.isEmpty()) {
                 showLoading(false); setStatus("No se obtuvo ninguna imagen del escáner"); return@registerForActivityResult
             }
-            uploadToDrive(imageUri)
+            uploadToDrive(uris)
         }
 
     private val consentLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val uri = pendingUploadUri
-            pendingUploadUri = null
-            if (result.resultCode == RESULT_OK && uri != null) uploadToDrive(uri)
+            val uris = pendingUploadUris
+            pendingUploadUris = null
+            if (result.resultCode == RESULT_OK && !uris.isNullOrEmpty()) uploadToDrive(uris)
             else { showLoading(false); setStatus("Permiso de Drive denegado. No se pudo subir el archivo.") }
         }
 
@@ -823,7 +823,7 @@ class MainActivity : AppCompatActivity() {
         selectedIsCierre = cierre
         val options = GmsDocumentScannerOptions.Builder()
             .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
-            .setPageLimit(1)
+            .setPageLimit(20)          // escaneo por lote: cada página se sube como una foto
             .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
             .setGalleryImportAllowed(false)
             .build()
@@ -841,38 +841,55 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- Subida a Google Drive ----------
 
-    private fun uploadToDrive(imageUri: Uri) {
+    private fun uploadToDrive(uris: List<Uri>) {
         val account = currentAccount
         val sede = selectedSede
         if (account == null || sede == null) {
             showLoading(false); setStatus("No hay cuenta vinculada o sede seleccionada"); return
         }
         val cierre = selectedIsCierre
+        val tipo = if (cierre) "cierre de caja" else "a Drive"
         showLoading(true)
-        setStatus(if (cierre) "Subiendo cierre de caja (${sede.label})..." else "Subiendo a Drive (${sede.label})...")
+        setStatus("Subiendo $tipo (${sede.label})…")
 
         lifecycleScope.launch {
+            val subidos = mutableListOf<String>()
             try {
-                val fileName = withContext(Dispatchers.IO) { performUpload(account, sede, imageUri, cierre) }
+                val usados = mutableSetOf<String>()
+                uris.forEachIndexed { i, uri ->
+                    if (uris.size > 1) setStatus("Subiendo ${i + 1} de ${uris.size} (${sede.label})…")
+                    subidos += withContext(Dispatchers.IO) { performUpload(account, sede, uri, cierre, usados) }
+                }
                 showLoading(false)
-                setStatus((if (cierre) "Cierre de caja subido:\n" else "Archivo subido:\n") + fileName)
+                setStatus(
+                    if (subidos.size == 1) (if (cierre) "Cierre de caja subido:\n" else "Archivo subido:\n") + subidos.first()
+                    else "${subidos.size} archivos subidos:\n" + subidos.joinToString("\n")
+                )
                 Toast.makeText(this@MainActivity, "Subida completada", Toast.LENGTH_SHORT).show()
             } catch (e: UserRecoverableAuthIOException) {
-                pendingUploadUri = imageUri
+                pendingUploadUris = uris.drop(subidos.size)
                 setStatus("Se requiere autorización adicional...")
                 consentLauncher.launch(e.intent)
             } catch (e: IOException) {
                 Log.e(TAG, "Error de red / API al subir a Drive", e)
-                showLoading(false); setStatus("Error al subir a Drive: ${e.localizedMessage}")
+                showLoading(false)
+                setStatus(errorBatch(subidos, uris.size, "Error al subir a Drive: ${e.localizedMessage}"))
             } catch (e: Exception) {
                 Log.e(TAG, "Error inesperado al subir a Drive", e)
-                showLoading(false); setStatus("Error inesperado: ${e.localizedMessage}")
+                showLoading(false)
+                setStatus(errorBatch(subidos, uris.size, "Error inesperado: ${e.localizedMessage}"))
             }
         }
     }
 
+    private fun errorBatch(subidos: List<String>, total: Int, msg: String): String =
+        if (subidos.isEmpty()) msg else "$msg\n\nSe subieron ${subidos.size} de $total:\n" + subidos.joinToString("\n")
+
     @Throws(IOException::class)
-    private fun performUpload(account: GoogleSignInAccount, sede: Sede, imageUri: Uri, cierre: Boolean): String {
+    private fun performUpload(
+        account: GoogleSignInAccount, sede: Sede, imageUri: Uri, cierre: Boolean,
+        usados: MutableSet<String> = mutableSetOf()
+    ): String {
         val credential = GoogleAccountCredential
             .usingOAuth2(this, listOf(DriveScopes.DRIVE))
             .apply { selectedAccount = account.account }
@@ -880,16 +897,25 @@ class MainActivity : AppCompatActivity() {
             .setApplicationName(APP_NAME)
             .build()
 
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        // Fecha y hora de subida de ESTA foto: 20261014_15-30-45 (la hora va al final del nombre)
+        val timestamp = SimpleDateFormat("yyyyMMdd_HH-mm-ss", Locale.getDefault()).format(Date())
         val userPrefix = (account.email ?: "usuario").substringBefore("@").replace(Regex("[^A-Za-z0-9._-]"), "_")
 
         // Estructura: {carpeta raíz} / {SEDE} / {DD-MM-AAAA} / archivo
         val rootId = if (cierre) FOLDER_ID_CIERRE else FOLDER_ID
         val parentId = DriveHelper.ensureFolderPath(driveService, rootId, listOf(sede.label, DriveHelper.todayFolderName()))
 
+        // Nombre único dentro del lote: si dos fotos caen en el mismo segundo, se añade _2, _3…
+        var fileName = (if (cierre) "CIERRE_" else "") + "${sede.key}_${userPrefix}_$timestamp.jpg"
+        var n = 2
+        while (fileName in usados) {
+            fileName = (if (cierre) "CIERRE_" else "") + "${sede.key}_${userPrefix}_${timestamp}_$n.jpg"; n++
+        }
+        usados += fileName
+
         val metadata = DriveFile().apply {
-            // Facturas: Sede_usuario_fecha.jpg · Cierres: CIERRE_Sede_usuario_fecha.jpg (misma sede y usuario)
-            name = (if (cierre) "CIERRE_" else "") + "${sede.key}_${userPrefix}_$timestamp.jpg"
+            // Facturas: Sede_usuario_fecha_hora.jpg · Cierres: CIERRE_Sede_usuario_fecha_hora.jpg
+            name = fileName
             mimeType = MIME_JPEG
             parents = listOf(parentId)
         }
