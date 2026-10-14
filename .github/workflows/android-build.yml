@@ -1,9 +1,13 @@
-name: Build Debug APK
+name: Build APK
 
 on:
   push:
     branches: [ main ]
   pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write
 
 jobs:
   assemble:
@@ -26,19 +30,39 @@ jobs:
           echo "${{ secrets.DEBUG_KEYSTORE_B64 }}" | base64 -d > app/debug.keystore
           keytool -list -v -keystore app/debug.keystore -storepass android | grep SHA1
 
+      - name: Read version
+        run: |
+          VER=$(tr -d ' \r\n' < VERSION)
+          echo "VER=$VER" >> $GITHUB_ENV
+          echo "Versión $VER, build ${{ github.run_number }}"
+
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon -PappVersionCode=${{ github.run_number }} -PappVersionName="${{ env.VER }}"
 
       - name: Show APK signing SHA-1
         run: |
           APKSIGNER=$(ls -d $ANDROID_HOME/build-tools/*/apksigner | sort -V | tail -1)
           "$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | grep -i "SHA-1"
 
-      - name: Upload APK
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk EscanerCompras.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mi-escaner-drive-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: EscanerCompras-v${{ env.VER }}-build${{ github.run_number }}
+          path: EscanerCompras.apk
+
+      - name: Publish Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VER }}-build${{ github.run_number }}
+          name: Escáner de Compras v${{ env.VER }} (build ${{ github.run_number }})
+          body: |
+            Versión ${{ env.VER }}, build ${{ github.run_number }}.
+            Descarga directa: https://github.com/${{ github.repository }}/releases/latest/download/EscanerCompras.apk
+          files: EscanerCompras.apk
