@@ -74,7 +74,7 @@ class GastosActivity : AppCompatActivity() {
     private var availableSedes: List<Sede> = emptyList()
     private val chips = mutableMapOf<Sede, MaterialButton>()
     private val amountFields = mutableMapOf<Sede, EditText>()
-    private var pendingUri: Uri? = null
+    private var pendingUris: List<Uri> = emptyList()
 
     // ---------- Vistas ----------
     private lateinit var segUna: TextView
@@ -101,10 +101,10 @@ class GastosActivity : AppCompatActivity() {
     private val scannerLauncher =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode != RESULT_OK) { setProcessing(false); return@registerForActivityResult }
-            val uri = GmsDocumentScanningResult.fromActivityResultIntent(result.data)?.pages?.firstOrNull()?.imageUri
-            if (uri == null) { setProcessing(false); toast("No se obtuvo ninguna imagen"); return@registerForActivityResult }
-            pendingUri = uri
-            saveToDrive(uri)
+            val uris = GmsDocumentScanningResult.fromActivityResultIntent(result.data)?.pages?.mapNotNull { it.imageUri } ?: emptyList()
+            if (uris.isEmpty()) { setProcessing(false); toast("No se obtuvo ninguna imagen"); return@registerForActivityResult }
+            pendingUris = uris
+            saveToDrive(uris)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -367,13 +367,14 @@ class GastosActivity : AppCompatActivity() {
         return if (v == Math.floor(v)) v.toLong().toString() else String.format(Locale.ROOT, "%.2f", v).replace('.', '_')
     }
 
-    private fun buildFileName(): String {
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date())
+    private fun buildFileName(suffix: String = ""): String {
+        // Fecha y hora de subida al final: _2026-10-16_15-30-45 (la hora evita choques en un lote)
+        val date = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.ROOT).format(Date())
         val sedeTag = if (mixto) "MIXTO_" + selected.joinToString("_") { Brands.gastoTag(it) + "-" + amountTag(it) }
                       else Brands.gastoTag(selected.first())
         val condTag = if (cond == "credito") "CREDITO-${days()}D" else "CONTADO"
         val curTag = if (currency == "usd") "USD" else "BS"
-        return "GASTO_${sedeTag}_${condTag}_${curTag}_$date.jpg"
+        return "GASTO_${sedeTag}_${condTag}_${curTag}_$date$suffix.jpg"
     }
 
     /** Carpeta destino: GASTOS OPERATIVOS / DD-MM-AAAA (dentro de la carpeta de facturas). */
@@ -387,7 +388,7 @@ class GastosActivity : AppCompatActivity() {
         setProcessing(true)
         val options = GmsDocumentScannerOptions.Builder()
             .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
-            .setPageLimit(1)
+            .setPageLimit(20)          // lote: todas las páginas se suben con la misma clasificación
             .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
             .setGalleryImportAllowed(false)
             .build()
@@ -396,14 +397,14 @@ class GastosActivity : AppCompatActivity() {
             .addOnFailureListener { e -> setProcessing(false); toast("No se pudo abrir el escáner: ${e.localizedMessage}") }
     }
 
-    private fun saveToDrive(uri: Uri) {
+    private fun saveToDrive(uris: List<Uri>) {
         val account = GoogleSignIn.getLastSignedInAccount(this)
         if (account == null) { setProcessing(false); toast("Inicia sesión primero"); return }
-        val fileName = buildFileName()
         val path = buildFolderPath()
         setProcessing(true)
 
         lifecycleScope.launch {
+            val subidos = mutableListOf<String>()
             try {
                 withContext(Dispatchers.IO) {
                     val credential = GoogleAccountCredential.usingOAuth2(this@GastosActivity, listOf(DriveScopes.DRIVE))
@@ -411,29 +412,44 @@ class GastosActivity : AppCompatActivity() {
                     val drive = Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
                         .setApplicationName("DocScanner").build()
                     val parentId = DriveHelper.ensureFolderPath(drive, MainActivity.FOLDER_ID, path)
-                    val metadata = DriveFile().apply { name = fileName; mimeType = MIME_JPEG; parents = listOf(parentId) }
-                    val stream = contentResolver.openInputStream(uri) ?: throw IOException("No se pudo leer la imagen")
-                    stream.use { drive.files().create(metadata, InputStreamContent(MIME_JPEG, it)).setFields("id, name").execute() }
+                    uris.forEachIndexed { i, uri ->
+                        withContext(Dispatchers.Main) {
+                            findViewById<TextView>(R.id.tvProcessing).text =
+                                if (uris.size > 1) "Guardando ${i + 1} de ${uris.size}…" else "Clasificando y guardando…"
+                        }
+                        // Nombre único dentro del lote: misma clasificación y mismo segundo -> _2, _3…
+                        var fileName = buildFileName()
+                        var n = 2
+                        while (fileName in subidos) { fileName = buildFileName("_$n"); n++ }
+                        val metadata = DriveFile().apply { name = fileName; mimeType = MIME_JPEG; parents = listOf(parentId) }
+                        val stream = contentResolver.openInputStream(uri) ?: throw IOException("No se pudo leer la imagen")
+                        stream.use { drive.files().create(metadata, InputStreamContent(MIME_JPEG, it)).setFields("id, name").execute() }
+                        subidos += fileName
+                    }
                 }
                 setProcessing(false)
-                showSaved(fileName, path.joinToString(" › "))
+                showSaved(subidos, path.joinToString(" › "))
             } catch (e: Exception) {
                 Log.e(TAG, "Error al guardar gasto", e)
                 setProcessing(false)
+                val pendientes = uris.drop(subidos.size)
+                val detalle = if (subidos.isEmpty()) "" else "\n\nYa se guardaron ${subidos.size} de ${uris.size}."
                 AlertDialog.Builder(this@GastosActivity)
                     .setTitle("No se pudo guardar")
-                    .setMessage(e.localizedMessage ?: "Error desconocido")
-                    .setPositiveButton("Reintentar") { _, _ -> pendingUri?.let { saveToDrive(it) } }
+                    .setMessage((e.localizedMessage ?: "Error desconocido") + detalle)
+                    .setPositiveButton("Reintentar") { _, _ -> if (pendientes.isNotEmpty()) saveToDrive(pendientes) }
                     .setNegativeButton("Cancelar", null)
                     .show()
             }
         }
     }
 
-    private fun showSaved(fileName: String, route: String) {
+    private fun showSaved(fileNames: List<String>, route: String) {
+        val titulo = if (fileNames.size == 1) "¡Guardado!" else "¡Guardados ${fileNames.size} soportes!"
+        val cuerpo = (if (fileNames.size == 1) "Archivo:\n" else "Archivos:\n") + fileNames.joinToString("\n")
         AlertDialog.Builder(this)
-            .setTitle("¡Guardado!")
-            .setMessage("Archivo:\n$fileName\n\nCarpeta:\n$route")
+            .setTitle(titulo)
+            .setMessage("$cuerpo\n\nCarpeta:\n$route")
             .setPositiveButton("Registrar otro gasto") { _, _ -> resetForm() }
             .setNegativeButton("Salir") { _, _ -> finish() }
             .setCancelable(false)
@@ -446,7 +462,7 @@ class GastosActivity : AppCompatActivity() {
         chipBs.isChecked = false; chipUsd.isChecked = false
         etDays.setText("")
         cardDays.visibility = View.GONE
-        pendingUri = null
+        pendingUris = emptyList()
         setMixto(false)
     }
 
