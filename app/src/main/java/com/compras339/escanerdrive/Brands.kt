@@ -171,6 +171,7 @@ object Brands {
             // Mismo orden y nombres que las cuentas analíticas de Odoo.
             // MEJORA-CP y AMPLIACION-VESUVIO-VINEDO conservan su clave original; las obras nuevas usan el código de Odoo.
             Sede("AMPLIACION-VESUVIO-VINEDO", "AMPLIACIÓN VESUVIO VIÑEDO", setOf("ampliacionvesuviovinedo", "ampliacionvinedo"), short = "Ampliación Vesuvio Viñedo"),   // AMPL-VV
+            Sede("OBR-COP-BAA", "BAÑO ADMINISTRACIÓN", setOf("obrcopbaa"), short = "Baño administración"),
             Sede("OBR-COP-BAO", "BAÑOS OFICINA", setOf("obrcopbao"), short = "Baños oficina"),
             Sede("OBR-COP-BAP", "BAÑOS PRODUCCIÓN", setOf("obrcopbap"), short = "Baños producción"),
             Sede("OBR-TFBLG-FACH", "FACHADA TFB LA GRANJA", setOf("obrtfblgfach"), short = "Fachada TFB La Granja"),
