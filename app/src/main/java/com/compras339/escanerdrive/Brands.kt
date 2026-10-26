@@ -159,7 +159,7 @@ object Brands {
      */
     val PROYECTOS = BrandTheme(
         id = "proyectos",
-        name = "Proyectos",
+        name = "Proyectos y obras",
         primaryColor = c("#F5A524"),
         onPrimaryColor = c("#16212E"),
         backgroundColor = c("#16212E"),
@@ -168,8 +168,15 @@ object Brands {
         textColor = c("#F4F1EA"),
         logoRes = R.drawable.logo_alimentos_light,
         sedes = listOf(
-            Sede("MEJORA-CP", "MEJORA CP", setOf("mejoracp"), short = "Mejora CP"),
-            Sede("AMPLIACION-VESUVIO-VINEDO", "AMPLIACIÓN VESUVIO VIÑEDO", setOf("ampliacionvesuviovinedo", "ampliacionvinedo"), short = "Ampliación Vesuvio Viñedo")
+            // Mismo orden y nombres que las cuentas analíticas de Odoo.
+            // MEJORA-CP y AMPLIACION-VESUVIO-VINEDO conservan su clave original; las obras nuevas usan el código de Odoo.
+            Sede("AMPLIACION-VESUVIO-VINEDO", "AMPLIACIÓN VESUVIO VIÑEDO", setOf("ampliacionvesuviovinedo", "ampliacionvinedo"), short = "Ampliación Vesuvio Viñedo"),   // AMPL-VV
+            Sede("OBR-COP-BAO", "BAÑOS OFICINA", setOf("obrcopbao"), short = "Baños oficina"),
+            Sede("OBR-COP-BAP", "BAÑOS PRODUCCIÓN", setOf("obrcopbap"), short = "Baños producción"),
+            Sede("OBR-TFBLG-FACH", "FACHADA TFB LA GRANJA", setOf("obrtfblgfach"), short = "Fachada TFB La Granja"),
+            Sede("MEJORA-CP", "MEJORA COP", setOf("mejoracp", "mejoracop"), short = "Mejora COP"),                                                        // MEJ-COP
+            Sede("OBR-COP-OFI", "OFICINA PRODUCCIÓN", setOf("obrcopofi"), short = "Oficina producción"),
+            Sede("OBR-TFBSAM-REMOD", "REMODELACIÓN TFB SAMBIL", setOf("obrtfbsamremod"), short = "Remodelación TFB Sambil")
         ),
         aliases = emptySet(),
         tag = ""
