@@ -93,18 +93,31 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
 
     // ---------- Lectura ----------
 
+    // La lista de pestañas cambia una vez por semana: se consulta como mucho cada 10 minutos (ahorra cuota de Google)
+    private var tabCache: String? = null
+    private var tabCacheAt = 0L
+
     /** Nombre de la última pestaña (semana vigente), ignorando "Observaciones". */
-    fun ultimaPestana(): String {
+    fun ultimaPestana(forzar: Boolean = false): String {
+        val cached = tabCache
+        if (!forzar && cached != null && System.currentTimeMillis() - tabCacheAt < 10 * 60_000L) return cached
         val meta = sheets.spreadsheets().get(sheetId).setFields("sheets.properties.title").execute()
         val titles = meta.sheets.map { it.properties.title }
-        return titles.lastOrNull { !it.equals(OBS_SHEET, ignoreCase = true) }
+        val tab = titles.lastOrNull { !it.equals(OBS_SHEET, ignoreCase = true) }
             ?: throw IOException("La hoja no tiene pestañas de pedidos")
+        tabCache = tab; tabCacheAt = System.currentTimeMillis()
+        return tab
     }
 
     /** Lee la semana vigente y agrupa las filas en pedidos (Nº Control + Proveedor). */
-    fun cargarSemana(): Semana {
-        val tab = ultimaPestana()
-        val values = sheets.spreadsheets().values().get(sheetId, "'$tab'!A1:Z").execute().getValues() ?: emptyList()
+    fun cargarSemana(forzarPestanas: Boolean = false): Semana {
+        val tab = ultimaPestana(forzarPestanas)
+        val values = try {
+            sheets.spreadsheets().values().get(sheetId, "'$tab'!A1:Z").execute().getValues() ?: emptyList()
+        } catch (e: com.google.api.client.googleapis.json.GoogleJsonResponseException) {
+            // La pestaña guardada ya no existe (renombrada/borrada): vuelve a leer la lista
+            if (e.statusCode == 400 && !forzarPestanas) return cargarSemana(true) else throw e
+        }
         if (values.isEmpty()) return Semana(tab, emptyList(), emptyMap())
 
         val header = values[0].map { norm(it?.toString()) }
