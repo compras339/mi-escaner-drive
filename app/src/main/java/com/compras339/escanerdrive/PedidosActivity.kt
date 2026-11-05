@@ -73,7 +73,7 @@ class PedidosActivity : AppCompatActivity() {
     private lateinit var etBuscar: EditText
 
     private var semana: PedidosRepo.Semana? = null
-    private var filtro = "PENDIENTES"   // PENDIENTES | CON SOPORTE | TODOS
+    private var filtro = "PENDIENTES"   // PENDIENTES | LISTOS | TODOS | SIN PEDIDO
     private var sedesUsuario: List<Sede> = emptyList()
     private var sedeSinPedido: Sede? = null
     private val dp get() = resources.displayMetrics.density
@@ -110,7 +110,7 @@ class PedidosActivity : AppCompatActivity() {
 
         val btnBack = findViewById<ImageButton>(R.id.btnBack)
         val btnRefresh = findViewById<ImageButton>(R.id.btnRefresh)
-        btnRefresh.setOnClickListener { cargar(forzarPestanas = true) }
+        btnRefresh.setOnClickListener { if (filtro == "SIN PEDIDO") cargarSinPedido() else cargar(forzarPestanas = true) }
         if (intent.getBooleanExtra(EXTRA_PRINCIPAL, false)) {
             // Pantalla principal: no hay a dónde volver
             btnBack.visibility = View.GONE
@@ -225,13 +225,14 @@ class PedidosActivity : AppCompatActivity() {
     private fun pedidosVisibles(): List<PedidosRepo.Pedido> = semana?.pedidos ?: emptyList()
 
     private fun pintar() {
+        if (filtro == "SIN PEDIDO") { pintarSinPedido(); return }
         val s = semana ?: return
         val q = PedidosRepo.norm(etBuscar.text.toString())
         val lista = pedidosVisibles().filter { p ->
             (q.isEmpty() || PedidosRepo.norm(p.proveedor).contains(q) || PedidosRepo.norm(p.control).contains(q)) &&
             when (filtro) {
-                "PENDIENTES" -> !p.estado.equals(PedidosRepo.ESTADO_CON_SOPORTE, true)
-                "CON SOPORTE" -> p.estado.equals(PedidosRepo.ESTADO_CON_SOPORTE, true)
+                "PENDIENTES" -> !PedidosRepo.esListo(p.estado)
+                "LISTOS" -> PedidosRepo.esListo(p.estado)
                 else -> true
             }
         }
@@ -249,7 +250,7 @@ class PedidosActivity : AppCompatActivity() {
     }
 
     private fun tarjeta(p: PedidosRepo.Pedido): View {
-        val conSoporte = p.estado.equals(PedidosRepo.ESTADO_CON_SOPORTE, true)
+        val conSoporte = PedidosRepo.esListo(p.estado)
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundResource(R.drawable.bg_card_light)
@@ -266,7 +267,7 @@ class PedidosActivity : AppCompatActivity() {
             addView(TextView(context).apply { text = "  ${p.fecha}"; setTextColor(MUTED); textSize = 12f
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) })
             addView(TextView(context).apply {
-                text = p.estado.uppercase(Locale.getDefault()); textSize = 11f; setTypeface(typeface, Typeface.BOLD)
+                text = if (conSoporte) PedidosRepo.ESTADO_LISTO else p.estado.uppercase(Locale.getDefault()); textSize = 11f; setTypeface(typeface, Typeface.BOLD)
                 setTextColor(if (conSoporte) Color.parseColor("#0B5D3B") else INK)
                 background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 12 * dp; setColor(if (conSoporte) Color.parseColor("#D9F2E6") else Color.parseColor("#FFF1D6")) }
                 setPadding((10 * dp).toInt(), (4 * dp).toInt(), (10 * dp).toInt(), (4 * dp).toInt())
@@ -310,12 +311,20 @@ class PedidosActivity : AppCompatActivity() {
 
     private fun construirFiltros() {
         layoutFiltros.removeAllViews()
-        listOf("PENDIENTES" to "Pendientes", "CON SOPORTE" to "Con soporte", "TODOS" to "Todos").forEach { (key, label) ->
+        val opciones = listOf("PENDIENTES" to "Pendientes", "LISTOS" to "Listos", "SIN PEDIDO" to "Sin pedido", "TODOS" to "Todos")
+        opciones.forEachIndexed { i, (key, label) ->
             layoutFiltros.addView(MaterialButton(this).apply {
-                text = label; isAllCaps = false; textSize = 12f
+                text = label; isAllCaps = false; textSize = 12f; maxLines = 1
                 insetTop = 0; insetBottom = 0; cornerRadius = (18 * dp).toInt()
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, (36 * dp).toInt()).apply { setMargins(0, 0, (8 * dp).toInt(), 0) }
-                setOnClickListener { filtro = key; construirFiltros(); pintar() }
+                minWidth = 0; minimumWidth = 0
+                setPadding((4 * dp).toInt(), 0, (4 * dp).toInt(), 0)
+                // Los 4 filtros se reparten el ancho por igual
+                layoutParams = LinearLayout.LayoutParams(0, (36 * dp).toInt(), 1f)
+                    .apply { if (i < opciones.size - 1) setMargins(0, 0, (6 * dp).toInt(), 0) }
+                setOnClickListener {
+                    filtro = key; construirFiltros()
+                    if (key == "SIN PEDIDO") cargarSinPedido() else pintar()
+                }
                 val on = filtro == key
                 backgroundTintList = android.content.res.ColorStateList.valueOf(if (on) ACCENT else Color.WHITE)
                 setTextColor(if (on) INK else Color.parseColor("#3A4756"))
@@ -355,13 +364,18 @@ class PedidosActivity : AppCompatActivity() {
                         val ts = SimpleDateFormat("yyyyMMdd_HH-mm-ss", Locale.getDefault()).format(Date())
                         var name = "${sede.key}_${userPrefix}_$ts.jpg"; var n = 2
                         while (name in subidos) { name = "${sede.key}_${userPrefix}_${ts}_$n.jpg"; n++ }
-                        val meta = DriveFile().apply { this.name = name; mimeType = "image/jpeg"; parents = listOf(parentId) }
+                        val meta = DriveFile().apply {
+                            this.name = name; mimeType = "image/jpeg"; parents = listOf(parentId)
+                            // Marca para listarla en la pestaña "Sin pedido" (el nombre del archivo no cambia)
+                            appProperties = mapOf(PedidosRepo.PROP_TIPO to PedidosRepo.TIPO_SIN_PEDIDO)
+                        }
                         val stream = contentResolver.openInputStream(uri) ?: throw IOException("No se pudo leer la imagen")
                         stream.use { repo.drive.files().create(meta, InputStreamContent("image/jpeg", it)).setFields("id").execute() }
                         subidos += name
                     }
                 }
                 setLoading(false)
+                if (filtro == "SIN PEDIDO") cargarSinPedido()
                 AlertDialog.Builder(this@PedidosActivity).setTitle("¡Guardado!")
                     .setMessage("${subidos.size} foto(s) de recepción sin pedido en ${sede.label} › ${DriveHelper.todayFolderName()}:\n" + subidos.joinToString("\n"))
                     .setPositiveButton("Aceptar", null).show()
@@ -370,6 +384,82 @@ class PedidosActivity : AppCompatActivity() {
                 setLoading(false)
                 toast("No se pudo subir: ${e.localizedMessage}")
             }
+        }
+    }
+
+    // ---------- Pestaña "Sin pedido" ----------
+
+    private var fotosSinPedido: List<DriveFile>? = null
+
+    /** Fotos de "recepción sin pedido" de los últimos 7 días (marcadas con appProperties al subirlas). */
+    private fun cargarSinPedido() {
+        setLoading(true)
+        lifecycleScope.launch {
+            try {
+                val desde = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT)
+                    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                    .format(Date(System.currentTimeMillis() - 7L * 24 * 3600 * 1000))
+                fotosSinPedido = withContext(Dispatchers.IO) {
+                    repo.drive.files().list()
+                        .setQ("appProperties has { key='${PedidosRepo.PROP_TIPO}' and value='${PedidosRepo.TIPO_SIN_PEDIDO}' } " +
+                            "and trashed = false and createdTime > '$desde'")
+                        .setOrderBy("createdTime desc").setPageSize(100)
+                        .setFields("files(id, name, createdTime, webViewLink)").execute().files ?: emptyList()
+                }
+                tvEstado.visibility = View.GONE
+            } catch (e: Exception) {
+                Log.e(TAG, "Error al listar fotos sin pedido", e)
+                fotosSinPedido = null
+                tvEstado.text = "No se pudieron leer las fotos sin pedido.\nToca ↻ para reintentar."
+                tvEstado.visibility = View.VISIBLE
+            } finally {
+                setLoading(false)
+                if (filtro == "SIN PEDIDO") pintarSinPedido()
+            }
+        }
+    }
+
+    private fun pintarSinPedido() {
+        layoutPedidos.removeAllViews()
+        val lista = fotosSinPedido ?: return
+        val fmt = SimpleDateFormat("dd/MM/yyyy · hh:mm a", Locale.getDefault())
+        layoutPedidos.addView(TextView(this).apply {
+            text = if (lista.isEmpty()) "No hay fotos sin pedido en los últimos 7 días."
+                else "${lista.size} foto(s) sin pedido · últimos 7 días. Toca una para verla."
+            setTextColor(MUTED); textSize = 12f; setPadding(0, 0, 0, (10 * dp).toInt())
+        })
+        lista.forEach { f ->
+            val usuario = (f.name ?: "").split("_").getOrNull(1) ?: ""
+            layoutPedidos.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setBackgroundResource(R.drawable.bg_card_light)
+                setPadding((14 * dp).toInt(), (12 * dp).toInt(), (14 * dp).toInt(), (12 * dp).toInt())
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { setMargins(0, 0, 0, (8 * dp).toInt()) }
+                isClickable = true; isFocusable = true
+                setOnClickListener { f.webViewLink?.let { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) } }
+                addView(android.widget.ImageView(context).apply {
+                    setImageResource(android.R.drawable.ic_menu_gallery)
+                    layoutParams = LinearLayout.LayoutParams((36 * dp).toInt(), (36 * dp).toInt()).apply { setMargins(0, 0, (12 * dp).toInt(), 0) }
+                })
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    addView(TextView(context).apply {
+                        text = f.createdTime?.value?.let { fmt.format(Date(it)) } ?: (f.name ?: "")
+                        setTextColor(INK); textSize = 14f; setTypeface(typeface, Typeface.BOLD)
+                    })
+                    addView(TextView(context).apply {
+                        text = "Recepción sin pedido" + (if (usuario.isNotBlank()) " · $usuario" else "")
+                        setTextColor(MUTED); textSize = 12f
+                    })
+                })
+                addView(TextView(context).apply {
+                    text = "SIN PEDIDO"; textSize = 11f; setTypeface(typeface, Typeface.BOLD); setTextColor(INK)
+                    background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 12 * dp; setColor(Color.parseColor("#E6E9EF")) }
+                    setPadding((10 * dp).toInt(), (4 * dp).toInt(), (10 * dp).toInt(), (4 * dp).toInt())
+                })
+            })
         }
     }
 
