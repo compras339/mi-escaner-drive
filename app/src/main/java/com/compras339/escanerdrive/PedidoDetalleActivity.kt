@@ -184,10 +184,16 @@ class PedidoDetalleActivity : AppCompatActivity() {
         Regex("""(\d{4})-(\d{2})-(\d{2})""").find(l.vencimiento)?.let { m ->
             c.set(m.groupValues[1].toInt(), m.groupValues[2].toInt() - 1, m.groupValues[3].toInt())
         }
-        DatePickerDialog(this, { _, y, mo, d ->
+        val dialog = DatePickerDialog(this, { _, y, mo, d ->
             l.vencimiento = String.format(Locale.ROOT, "%04d-%02d-%02d", y, mo + 1, d)
             pintarFecha(tv, l.vencimiento)
-        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
+        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH))
+        // Botón "Limpiar": quita la fecha del ítem (al guardar, la celda queda vacía en la hoja)
+        dialog.setButton(DatePickerDialog.BUTTON_NEUTRAL, "Limpiar") { _, _ ->
+            l.vencimiento = ""
+            pintarFecha(tv, l.vencimiento)
+        }
+        dialog.show()
     }
 
     private fun pintarEstado() {
