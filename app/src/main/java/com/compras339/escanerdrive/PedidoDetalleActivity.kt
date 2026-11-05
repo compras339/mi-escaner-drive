@@ -220,7 +220,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
 
     private fun cargarAnteriores() {
         lifecycleScope.launch {
-            val lista = withContext(Dispatchers.IO) { repo.observaciones(semanaTab, pedido.control) }
+            val lista = withContext(Dispatchers.IO) { repo.observaciones(semanaTab, pedido.clave) }
             layoutAnteriores.removeAllViews()
             cardAnteriores.visibility = if (lista.isEmpty()) View.GONE else View.VISIBLE
             lista.reversed().forEach { o ->
@@ -237,7 +237,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
 
     // ---------- Fotos del pedido ----------
 
-    private fun prefijoFotos(): String = "PEDIDO_${Brands.slug(pedido.control)}_${Brands.slug(semanaTab).take(20)}_"
+    private fun prefijoFotos(): String = "PEDIDO_${Brands.slug(semanaTab).take(20)}_${pedido.clave}_"
 
     private fun cargarFotos() {
         lifecycleScope.launch {
@@ -336,7 +336,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
                 }
                 pintarEstado()
                 cargarFotos()
-                toast("${subidos.size} foto(s) guardadas para el pedido ${pedido.control}")
+                toast("${subidos.size} foto(s) guardadas para ${pedido.proveedor}")
             } catch (e: Exception) {
                 Log.e(TAG, "Error al subir fotos del pedido", e)
                 val detalle = if (subidos.isEmpty()) "" else "\n\nYa se guardaron ${subidos.size} de ${uris.size}."
