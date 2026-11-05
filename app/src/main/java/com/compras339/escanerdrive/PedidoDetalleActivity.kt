@@ -199,8 +199,8 @@ class PedidoDetalleActivity : AppCompatActivity() {
     }
 
     private fun pintarEstado() {
-        val con = pedido.estado.equals(PedidosRepo.ESTADO_CON_SOPORTE, true)
-        tvEstadoPedido.text = pedido.estado.uppercase(Locale.getDefault())
+        val con = PedidosRepo.esListo(pedido.estado)
+        tvEstadoPedido.text = if (con) PedidosRepo.ESTADO_LISTO else pedido.estado.uppercase(Locale.getDefault())
         tvEstadoPedido.setTextColor(if (con) Color.parseColor("#9EE2BF") else Color.parseColor("#B7C2CE"))
     }
 
@@ -344,7 +344,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
                         stream.use { repo.drive.files().create(meta, InputStreamContent("image/jpeg", it)).setFields("id").execute() }
                         subidos += name
                     }
-                    repo.marcarEstado(semana, pedido, PedidosRepo.ESTADO_CON_SOPORTE)
+                    repo.marcarEstado(semana, pedido, PedidosRepo.ESTADO_LISTO)
                 }
                 pintarEstado()
                 cargarFotos()
