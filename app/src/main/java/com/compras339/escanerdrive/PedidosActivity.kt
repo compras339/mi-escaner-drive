@@ -302,6 +302,7 @@ class PedidosActivity : AppCompatActivity() {
             putExtra(PedidoDetalleActivity.EXTRA_ESCANEAR, escanear)
             putExtra(PedidoDetalleActivity.EXTRA_COL_VENC, s.columnas["venc"] ?: -1)
             putExtra(PedidoDetalleActivity.EXTRA_COL_ESTADO, s.columnas["estado"] ?: -1)
+            putExtra(PedidoDetalleActivity.EXTRA_COL_OBS, s.columnas["obs"] ?: -1)
         })
     }
 
