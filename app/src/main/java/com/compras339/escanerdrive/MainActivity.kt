@@ -369,7 +369,9 @@ class MainActivity : AppCompatActivity() {
             btnPedidos.visibility = if (Brands.MODULE_PEDIDOS in allowedModules) View.VISIBLE else View.GONE
 
             // Usuarios "SOLO GASTOS" / "SOLO PEDIDOS": sin escaneo, cierre ni galería; se abre su pantalla directamente
-            val soloPedidos = Brands.MODULE_SOLO_PEDIDOS in allowedModules
+            // "Solo pedidos": explícito (SOLO PEDIDOS) o implícito (tiene PEDIDOS y ninguna sede de escaneo)
+            val soloPedidos = Brands.MODULE_SOLO_PEDIDOS in allowedModules ||
+                (Brands.MODULE_PEDIDOS in allowedModules && sedes.isEmpty())
             val soloGastos = !soloPedidos && Brands.MODULE_SOLO_GASTOS in allowedModules && sedes.isNotEmpty()
             if (soloGastos || soloPedidos) {
                 scrollSedes.visibility = View.GONE
@@ -383,7 +385,7 @@ class MainActivity : AppCompatActivity() {
                 if (autoOpenGastos) btnGastos.performClick()
             }
             if (soloPedidos) {
-                setStatus("Acceso a Pedidos. Usa el botón «Pedidos →» para ver los pedidos de la semana.")
+                hideStatus()
                 if (autoOpenGastos) btnPedidos.performClick()
             } else if (Brands.MODULE_INICIO_PEDIDOS in allowedModules && autoOpenGastos) {
                 btnPedidos.performClick()   // "PEDIDOS INICIO": abre Pedidos al entrar, la pantalla principal queda detrás
@@ -392,6 +394,7 @@ class MainActivity : AppCompatActivity() {
 
             when {
                 error != null -> setStatus("No se pudieron cargar los permisos:\n$error\n\nMantén pulsado el botón de cuenta para reintentar.")
+                soloPedidos -> hideStatus()   // pantalla limpia detrás de Pedidos
                 sedes.isEmpty() -> setStatus("Esta cuenta no tiene ninguna sede asignada.\nContacta al administrador.")
                 soloGastos || soloPedidos -> Unit     // conserva el mensaje de acceso
                 else -> hideStatus()   // en reposo no mostramos nada: el correo ya se ve en el botón de cuenta
