@@ -141,7 +141,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
         btnEscanear.setOnClickListener { escanear() }
 
         construirLineas()
-        cargarAnteriores()
+        // Observaciones ocultas: ya no se leen al abrir (ahorra una consulta a la hoja)
         cargarFotos()
         if (intent.getBooleanExtra(EXTRA_ESCANEAR, false)) escanear()
     }
