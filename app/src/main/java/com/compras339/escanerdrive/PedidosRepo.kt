@@ -33,6 +33,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
     companion object {
         const val OBS_SHEET = "Observaciones"
         const val COL_VENC = "Fecha vencimiento"
+        const val COL_OBS = "Observaciones"
         const val ESTADO_PENDIENTE = "PENDIENTE"
         const val ESTADO_CON_SOPORTE = "CON SOPORTE"
         private val OBS_HEADER = listOf("Fecha y hora", "Semana", "Pedido", "Proveedor", "Sede", "Observación", "Usuario")
@@ -139,7 +140,8 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             "cantidad" to col("Cantidad", "Cant"),
             "unidad" to col("Unidad de medida", "Unidad", "Und"),
             "estado" to col("Estado"),
-            "venc" to col(COL_VENC, "Vencimiento")
+            "venc" to col(COL_VENC, "Vencimiento"),
+            "obs" to col(COL_OBS, "Observacion")
         )
         if (columnas["proveedor"]!! < 0) {
             throw IOException("La pestaña '$tab' no tiene una columna de proveedor en la fila 1")
@@ -181,16 +183,21 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
 
     // ---------- Escritura ----------
 
+    /** Busca en la fila 1 la columna con ese encabezado; si no existe la crea al final. Devuelve su índice. */
+    private fun columnaOCrear(tab: String, nombre: String): Int {
+        val header = sheets.spreadsheets().values().get(sheetId, "'$tab'!1:1").execute().getValues()?.firstOrNull() ?: emptyList()
+        val i = header.indexOfFirst { norm(it?.toString()) == norm(nombre) }
+        if (i >= 0) return i
+        sheets.spreadsheets().values()
+            .update(sheetId, "'$tab'!${colLetter(header.size)}1", ValueRange().setValues(listOf(listOf(nombre))))
+            .setValueInputOption("RAW").execute()
+        return header.size
+    }
+
     /** Escribe las fechas de vencimiento; crea la columna "Fecha vencimiento" al final si no existe. */
     fun guardarVencimientos(semana: Semana, pedido: Pedido) {
         var vencCol = semana.columnas["venc"] ?: -1
-        if (vencCol < 0) {
-            val header = sheets.spreadsheets().values().get(sheetId, "'${semana.tab}'!1:1").execute().getValues()?.firstOrNull() ?: emptyList()
-            vencCol = header.size
-            sheets.spreadsheets().values()
-                .update(sheetId, "'${semana.tab}'!${colLetter(vencCol)}1", ValueRange().setValues(listOf(listOf(COL_VENC))))
-                .setValueInputOption("USER_ENTERED").execute()
-        }
+        if (vencCol < 0) vencCol = columnaOCrear(semana.tab, COL_VENC)
         val letter = colLetter(vencCol)
         val data = pedido.lineas.map { l ->
             ValueRange().setRange("'${semana.tab}'!$letter${l.fila}").setValues(listOf(listOf(l.vencimiento)))
@@ -205,19 +212,33 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
     /** Marca todas las filas del pedido con el estado dado (crea la columna Estado si falta). */
     fun marcarEstado(semana: Semana, pedido: Pedido, estado: String) {
         var col = semana.columnas["estado"] ?: -1
-        if (col < 0) {
-            val header = sheets.spreadsheets().values().get(sheetId, "'${semana.tab}'!1:1").execute().getValues()?.firstOrNull() ?: emptyList()
-            col = header.size
-            sheets.spreadsheets().values()
-                .update(sheetId, "'${semana.tab}'!${colLetter(col)}1", ValueRange().setValues(listOf(listOf("Estado"))))
-                .setValueInputOption("USER_ENTERED").execute()
-        }
+        if (col < 0) col = columnaOCrear(semana.tab, "Estado")
         val letter = colLetter(col)
         val data = pedido.lineas.map { l -> ValueRange().setRange("'${semana.tab}'!$letter${l.fila}").setValues(listOf(listOf(estado))) }
         sheets.spreadsheets().values().batchUpdate(sheetId,
             com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest().setValueInputOption("USER_ENTERED").setData(data)
         ).execute()
         pedido.estado = estado
+    }
+
+    /**
+     * Copia las observaciones del pedido a la columna "Observaciones" de la pestaña de la semana
+     * (en todas las filas del pedido). Crea la columna al final si no existe.
+     */
+    fun escribirObservacionesEnSemana(semana: Semana, pedido: Pedido) {
+        val lista = observaciones(semana.tab, pedido.clave)
+        val texto = lista.joinToString(" | ") { o ->
+            o.fechaHora.takeLast(11) + " " + o.texto + (if (o.usuario.isNotBlank()) " (" + o.usuario.substringBefore('@') + ")" else "")
+        }
+        var col = semana.columnas["obs"] ?: -1
+        if (col < 0) col = columnaOCrear(semana.tab, COL_OBS)
+        val letter = colLetter(col)
+        val data = pedido.lineas.map { l -> ValueRange().setRange("'${semana.tab}'!$letter${l.fila}").setValues(listOf(listOf(texto))) }
+        if (data.isNotEmpty()) {
+            sheets.spreadsheets().values().batchUpdate(sheetId,
+                com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest().setValueInputOption("RAW").setData(data)
+            ).execute()
+        }
     }
 
     /** Añade una fila a la pestaña "Observaciones" (la crea con encabezados si no existe). */
