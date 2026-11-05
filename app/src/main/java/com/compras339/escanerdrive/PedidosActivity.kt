@@ -304,6 +304,8 @@ class PedidosActivity : AppCompatActivity() {
             putExtra(PedidoDetalleActivity.EXTRA_COL_VENC, s.columnas["venc"] ?: -1)
             putExtra(PedidoDetalleActivity.EXTRA_COL_ESTADO, s.columnas["estado"] ?: -1)
             putExtra(PedidoDetalleActivity.EXTRA_COL_OBS, s.columnas["obs"] ?: -1)
+            putExtra(PedidoDetalleActivity.EXTRA_COL_NO_LLEGO, s.columnas["nollego"] ?: -1)
+            putExtra(PedidoDetalleActivity.EXTRA_PIDE_VENC, s.pideVencimiento(p.proveedor))
         })
     }
 
