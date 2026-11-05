@@ -169,13 +169,15 @@
                 tools:ignore="HardcodedText" />
 
             <!-- Observaciones -->
+            <!-- Observaciones: oculto (no se usa) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:background="@drawable/bg_card_light"
                 android:orientation="vertical"
-                android:padding="14dp">
+                android:padding="14dp"
+                android:visibility="gone">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                     <TextView style="@style/PedLabel" android:layout_width="0dp" android:layout_weight="1" android:text="OBSERVACIONES" tools:ignore="HardcodedText" />
                     <TextView android:id="@+id/tvObsCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0 / 300" android:textColor="#5F6E7E" android:textSize="11sp" tools:ignore="HardcodedText" />
@@ -205,6 +207,7 @@
             <!-- Anteriores -->
             <LinearLayout
                 android:id="@+id/cardAnteriores"
+                android:visibility="gone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
