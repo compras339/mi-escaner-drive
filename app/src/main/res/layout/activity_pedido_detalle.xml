@@ -145,10 +145,10 @@
                     android:background="@drawable/bg_table_head"
                     android:orientation="horizontal"
                     android:paddingStart="10dp" android:paddingTop="8dp" android:paddingEnd="10dp" android:paddingBottom="8dp">
-                    <TextView style="@style/PedHead" android:layout_width="26dp" android:text="N°" tools:ignore="HardcodedText" />
+                    <TextView style="@style/PedHead" android:layout_width="36dp" android:text="FALTA" android:textSize="8sp" tools:ignore="HardcodedText" />
                     <TextView android:id="@+id/tvHeadItems" style="@style/PedHead" android:layout_width="0dp" android:layout_weight="1" android:text="ÍTEM" tools:ignore="HardcodedText" />
                     <TextView style="@style/PedHead" android:layout_width="64dp" android:gravity="end" android:text="CANT." tools:ignore="HardcodedText" />
-                    <TextView style="@style/PedHead" android:layout_width="112dp" android:layout_marginStart="8dp" android:text="VENCIMIENTO" tools:ignore="HardcodedText" />
+                    <TextView android:id="@+id/tvHeadVenc" style="@style/PedHead" android:layout_width="112dp" android:layout_marginStart="8dp" android:text="VENCIMIENTO" tools:ignore="HardcodedText" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -163,6 +163,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:paddingStart="4dp" android:paddingEnd="4dp"
+                android:id="@+id/tvAyudaLineas"
                 android:text="Toca la fecha de vencimiento de cada ítem para editarla y pulsa Guardar. Las fechas se registran en la hoja de pedidos."
                 android:textColor="#5F6E7E" android:textSize="11sp"
                 tools:ignore="HardcodedText" />
