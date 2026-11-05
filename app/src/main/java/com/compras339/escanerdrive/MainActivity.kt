@@ -385,6 +385,8 @@ class MainActivity : AppCompatActivity() {
             if (soloPedidos) {
                 setStatus("Acceso a Pedidos. Usa el botón «Pedidos →» para ver los pedidos de la semana.")
                 if (autoOpenGastos) btnPedidos.performClick()
+            } else if (Brands.MODULE_INICIO_PEDIDOS in allowedModules && autoOpenGastos) {
+                btnPedidos.performClick()   // "PEDIDOS INICIO": abre Pedidos al entrar, la pantalla principal queda detrás
             }
             autoOpenGastos = false
 
