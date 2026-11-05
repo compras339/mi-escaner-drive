@@ -123,6 +123,7 @@ class PedidosActivity : AppCompatActivity() {
                 visibility = View.VISIBLE
                 setOnClickListener { opcionesCuenta(account.email ?: "cuenta") }
             }
+            buscarActualizacion()
         } else {
             btnBack.setOnClickListener { finish() }
         }
@@ -139,6 +140,33 @@ class PedidosActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (semana != null) cargar()   // al volver del detalle, refresca estados y vencimientos
+    }
+
+    /** Aviso de versión nueva (en "solo pedidos" esta es la pantalla principal, así que el aviso va aquí). */
+    private fun buscarActualizacion() {
+        lifecycleScope.launch {
+            val latest = UpdateChecker.fetchLatest() ?: return@launch
+            val current = UpdateChecker.currentBuild(this@PedidosActivity)
+            if (latest.build <= current || isFinishing) return@launch
+            AlertDialog.Builder(this@PedidosActivity)
+                .setTitle("Nueva versión disponible")
+                .setMessage("Hay una versión nueva de la app (${latest.version}, build ${latest.build}).\n" +
+                    "Tienes instalada la build $current.\n\nLa actualización se instala encima; no pierdes la sesión.")
+                .setPositiveButton("Actualizar") { _, _ ->
+                    toast("Descargando actualización…")
+                    lifecycleScope.launch {
+                        try {
+                            UpdateChecker.downloadAndInstall(this@PedidosActivity, latest)
+                            toast("Descarga lista. Pulsa «Instalar» en la ventana de Android.")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error al actualizar", e)
+                            toast("No se pudo actualizar: ${e.localizedMessage}")
+                        }
+                    }
+                }
+                .setNegativeButton("Más tarde", null)
+                .show()
+        }
     }
 
     private fun opcionesCuenta(email: String) {
