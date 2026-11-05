@@ -386,7 +386,8 @@ class MainActivity : AppCompatActivity() {
             }
             if (soloPedidos) {
                 hideStatus()
-                if (autoOpenGastos) btnPedidos.performClick()
+                // "Solo pedidos": Pedidos es la pantalla principal; esta ventana no se vuelve a ver
+                if (autoOpenGastos) abrirPedidosComoPrincipal()
             } else if (Brands.MODULE_INICIO_PEDIDOS in allowedModules && autoOpenGastos) {
                 btnPedidos.performClick()   // "PEDIDOS INICIO": abre Pedidos al entrar, la pantalla principal queda detrás
             }
@@ -400,6 +401,15 @@ class MainActivity : AppCompatActivity() {
                 else -> hideStatus()   // en reposo no mostramos nada: el correo ya se ve en el botón de cuenta
             }
         }
+    }
+
+    /** Abre Pedidos como pantalla principal (sin flecha de volver; atrás sale de la app). */
+    private fun abrirPedidosComoPrincipal() {
+        startActivity(Intent(this, PedidosActivity::class.java).apply {
+            putStringArrayListExtra(PedidosActivity.EXTRA_SEDE_KEYS, ArrayList(allowedSedes.map { it.key }))
+            putExtra(PedidosActivity.EXTRA_PRINCIPAL, true)
+        })
+        overridePendingTransition(0, 0)
     }
 
     data class Permisos(val sedes: Set<Sede>, val modules: Set<String>, val error: String?)
