@@ -35,7 +35,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         const val COL_VENC = "Fecha vencimiento"
         const val ESTADO_PENDIENTE = "PENDIENTE"
         const val ESTADO_CON_SOPORTE = "CON SOPORTE"
-        private val OBS_HEADER = listOf("Fecha y hora", "Semana", "Nº Control", "Proveedor", "Sede", "Observación", "Usuario")
+        private val OBS_HEADER = listOf("Fecha y hora", "Semana", "Pedido", "Proveedor", "Sede", "Observación", "Usuario")
 
         /** Índice de columna (0 = A) → letra A1 ("A", "B", ..., "AA"). */
         fun colLetter(index: Int): String {
@@ -58,6 +58,9 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         val control: String, val fecha: String, val proveedor: String, val sede: String,
         var estado: String, val lineas: MutableList<Linea>
     ) {
+        /** Clave estable del pedido para fotos y observaciones: proveedor normalizado (o el nº de control si existe). */
+        val clave: String get() = Brands.slug(proveedor).take(24).ifBlank { Brands.slug(control) }
+
         fun toJson(): String = JSONObject().apply {
             put("control", control); put("fecha", fecha); put("proveedor", proveedor); put("sede", sede); put("estado", estado)
             put("lineas", JSONArray().apply { lineas.forEach { l -> put(JSONObject().apply {
@@ -105,22 +108,28 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         if (values.isEmpty()) return Semana(tab, emptyList(), emptyMap())
 
         val header = values[0].map { norm(it?.toString()) }
-        fun col(vararg names: String): Int = names.map { norm(it) }.firstNotNullOfOrNull { n -> header.indexOf(n).takeIf { it >= 0 } } ?: -1
+        /** Busca la columna cuyo encabezado sea igual o contenga alguno de los nombres (sin acentos/espacios). */
+        fun col(vararg names: String): Int {
+            val keys = names.map { norm(it) }
+            keys.forEach { k -> header.indexOf(k).takeIf { it >= 0 }?.let { return it } }
+            keys.forEach { k -> header.indexOfFirst { h -> h.isNotEmpty() && (h.startsWith(k) || h.contains(k)) }.takeIf { it >= 0 }?.let { return it } }
+            return -1
+        }
         val columnas = mapOf(
             "control" to col("Nº Control", "N° Control", "No Control", "Control", "Pedido"),
             "fecha" to col("Fecha pedido", "Fecha"),
-            "proveedor" to col("Proveedor"),
+            "proveedor" to col("Proveedor asignado", "Proveedor"),
             "sede" to col("Sede"),
-            "numero" to col("Nº ítem", "N° ítem", "No item", "Item", "Nº"),
+            "numero" to col("Nº ítem", "N° ítem", "No item", "Nº"),
             "codigo" to col("Código", "Codigo", "ID"),
-            "descripcion" to col("Descripción", "Descripcion", "Descripción del ítem", "Producto"),
+            "descripcion" to col("Descripción del ítem", "Descripción", "Descripcion", "Item", "Producto"),
             "cantidad" to col("Cantidad", "Cant"),
-            "unidad" to col("Unidad", "Und"),
+            "unidad" to col("Unidad de medida", "Unidad", "Und"),
             "estado" to col("Estado"),
             "venc" to col(COL_VENC, "Vencimiento")
         )
-        if (columnas["control"]!! < 0 || columnas["proveedor"]!! < 0) {
-            throw IOException("La pestaña '$tab' no tiene las columnas Nº Control y Proveedor en la fila 1")
+        if (columnas["proveedor"]!! < 0) {
+            throw IOException("La pestaña '$tab' no tiene una columna de proveedor en la fila 1")
         }
         fun cell(row: List<Any?>, key: String): String {
             val i = columnas[key] ?: -1
@@ -128,13 +137,17 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         }
 
         val pedidos = linkedMapOf<String, Pedido>()
+        val sinControl = columnas["control"]!! < 0
         values.drop(1).forEachIndexed { idx, row ->
             val filaHoja = idx + 2
-            val control = cell(row, "control"); val proveedor = cell(row, "proveedor")
-            if (control.isEmpty() && proveedor.isEmpty()) return@forEachIndexed
-            val key = norm(control) + "|" + norm(proveedor)
+            val proveedor = cell(row, "proveedor")
+            if (proveedor.isEmpty() && cell(row, "descripcion").isEmpty()) return@forEachIndexed
+            // Sin columna de control: un pedido por proveedor, numerado por orden de aparición
+            val control = if (sinControl) "" else cell(row, "control")
+            val key = if (sinControl) norm(proveedor) else norm(control) + "|" + norm(proveedor)
             val pedido = pedidos.getOrPut(key) {
-                Pedido(control, cell(row, "fecha"), proveedor, cell(row, "sede"),
+                val numero = if (sinControl) String.format(Locale.ROOT, "%03d", pedidos.size + 1) else control
+                Pedido(numero, cell(row, "fecha").ifBlank { tab }, proveedor.ifBlank { "(sin proveedor)" }, cell(row, "sede"),
                     cell(row, "estado").ifBlank { ESTADO_PENDIENTE }, mutableListOf())
             }
             pedido.lineas += Linea(filaHoja, cell(row, "numero").ifBlank { (pedido.lineas.size + 1).toString() },
@@ -144,12 +157,12 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         return Semana(tab, pedidos.values.toList(), columnas)
     }
 
-    fun observaciones(semana: String, control: String): List<Observacion> = try {
+    fun observaciones(semana: String, clave: String): List<Observacion> = try {
         val values = sheets.spreadsheets().values().get(sheetId, "'$OBS_SHEET'!A2:G").execute().getValues() ?: emptyList()
         values.mapNotNull { r ->
             fun c(i: Int) = if (i in r.indices) (r[i]?.toString() ?: "") else ""
             val o = Observacion(c(0), c(1), c(2), c(5), c(6))
-            if (norm(o.control) == norm(control) && norm(o.semana) == norm(semana)) o else null
+            if (norm(o.control) == norm(clave) && norm(o.semana) == norm(semana)) o else null
         }
     } catch (e: Exception) { emptyList() }   // la pestaña aún no existe
 
@@ -205,7 +218,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
                 .setValueInputOption("USER_ENTERED").execute()
         }
         val fechaHora = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(Date())
-        val row = listOf(fechaHora, semana, pedido.control, pedido.proveedor, pedido.sede, texto, usuario)
+        val row = listOf(fechaHora, semana, pedido.clave, pedido.proveedor, pedido.sede, texto, usuario)
         sheets.spreadsheets().values().append(sheetId, "'$OBS_SHEET'!A1", ValueRange().setValues(listOf(row)))
             .setValueInputOption("USER_ENTERED").setInsertDataOption("INSERT_ROWS").execute()
     }
