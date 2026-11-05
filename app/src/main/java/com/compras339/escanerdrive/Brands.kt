@@ -224,6 +224,8 @@ object Brands {
     const val MODULE_SOLO_GASTOS = "SOLO_GASTOS"
     const val MODULE_PEDIDOS = "PEDIDOS"
     const val MODULE_SOLO_PEDIDOS = "SOLO_PEDIDOS"
+    /** Abre Pedidos al iniciar sesión, conservando la pantalla principal detrás. */
+    const val MODULE_INICIO_PEDIDOS = "INICIO_PEDIDOS"
     val ALL_MODULES = setOf(MODULE_GASTOS, MODULE_CIERRE, MODULE_PEDIDOS)
 
     /** Traduce una palabra de la hoja (ya normalizada) a módulos; vacío si no es un módulo. */
@@ -232,6 +234,7 @@ object Brands {
         "sologastos", "sologasto", "gastossolo", "solo" -> setOf(MODULE_GASTOS, MODULE_SOLO_GASTOS)
         "pedidos", "pedido", "recepcion", "recepciones" -> setOf(MODULE_PEDIDOS)
         "solopedidos", "solopedido", "pedidossolo" -> setOf(MODULE_PEDIDOS, MODULE_SOLO_PEDIDOS)
+        "pedidosinicio", "iniciopedidos", "inicio" -> setOf(MODULE_PEDIDOS, MODULE_INICIO_PEDIDOS)
         "cierre", "cierres", "cierredecaja" -> setOf(MODULE_CIERRE)
         "todos" -> ALL_MODULES
         else -> emptySet()
