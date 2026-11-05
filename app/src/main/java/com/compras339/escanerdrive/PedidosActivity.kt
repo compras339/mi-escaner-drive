@@ -62,6 +62,9 @@ class PedidosActivity : AppCompatActivity() {
         val SEDE_PEDIDOS: Sede get() = Brands.sedeByKey("CP")!!
 
         fun sedeDelPedido(texto: String, sedesUsuario: List<Sede>): Sede = SEDE_PEDIDOS
+
+        /** Lo activa el detalle al guardar o subir fotos: al volver, la lista se relee sí o sí de la hoja. */
+        @Volatile var recargarAlVolver = false
     }
 
     private lateinit var repo: PedidosRepo
@@ -140,7 +143,9 @@ class PedidosActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         // Al volver (del detalle, la cámara, desbloquear el teléfono…) refresca, pero no más de una vez cada 20 s
-        if (semana != null && System.currentTimeMillis() - ultimaCarga > 20_000L) cargar()
+        val forzar = recargarAlVolver
+        recargarAlVolver = false
+        if (semana != null && (forzar || System.currentTimeMillis() - ultimaCarga > 20_000L)) cargar()
     }
 
     /** Aviso de versión nueva (en "solo pedidos" esta es la pantalla principal, así que el aviso va aquí). */
