@@ -34,6 +34,12 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         const val OBS_SHEET = "Observaciones"
         const val COL_VENC = "Fecha vencimiento"
         const val COL_OBS = "Observaciones"
+        const val COL_NO_LLEGO = "No llegó"
+        /** Pestaña donde la usuaria lista los proveedores a los que se les pide fecha de vencimiento. */
+        const val PROV_VENC_SHEET = "Proveedores vencimiento"
+        /** Pestañas que no son semanas de pedidos. */
+        private fun esPestanaEspecial(t: String) = norm(t) == norm(OBS_SHEET) || norm(t) == norm(PROV_VENC_SHEET)
+        fun esSi(v: String?): Boolean = norm(v) in setOf("si", "x", "true", "verdadero", "1")
         const val ESTADO_PENDIENTE = "PENDIENTE"
         /** Estado que escribe la app al subir el soporte de un pedido. */
         const val ESTADO_LISTO = "LISTO"
@@ -60,7 +66,8 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
     data class Linea(
         val fila: Int,            // número de fila en la hoja (1 = encabezado)
         val numero: String, val codigo: String, val descripcion: String,
-        val cantidad: String, val unidad: String, var vencimiento: String
+        val cantidad: String, val unidad: String, var vencimiento: String,
+        var noLlego: Boolean = false
     )
 
     data class Pedido(
@@ -74,7 +81,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             put("control", control); put("fecha", fecha); put("proveedor", proveedor); put("sede", sede); put("estado", estado)
             put("lineas", JSONArray().apply { lineas.forEach { l -> put(JSONObject().apply {
                 put("fila", l.fila); put("numero", l.numero); put("codigo", l.codigo); put("descripcion", l.descripcion)
-                put("cantidad", l.cantidad); put("unidad", l.unidad); put("vencimiento", l.vencimiento) }) } })
+                put("cantidad", l.cantidad); put("unidad", l.unidad); put("vencimiento", l.vencimiento); put("noLlego", l.noLlego) }) } })
         }.toString()
 
         companion object {
@@ -83,13 +90,20 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
                 val arr = o.getJSONArray("lineas")
                 val lineas = (0 until arr.length()).map { i -> val l = arr.getJSONObject(i)
                     Linea(l.getInt("fila"), l.getString("numero"), l.getString("codigo"), l.getString("descripcion"),
-                        l.getString("cantidad"), l.getString("unidad"), l.getString("vencimiento")) }.toMutableList()
+                        l.getString("cantidad"), l.getString("unidad"), l.getString("vencimiento"), l.optBoolean("noLlego", false)) }.toMutableList()
                 return Pedido(o.getString("control"), o.getString("fecha"), o.getString("proveedor"), o.getString("sede"), o.getString("estado"), lineas)
             }
         }
     }
 
-    data class Semana(val tab: String, val pedidos: List<Pedido>, val columnas: Map<String, Int>)
+    /** provVenc = proveedores con fecha de vencimiento; null = no existe la pestaña (se muestra a todos). */
+    data class Semana(val tab: String, val pedidos: List<Pedido>, val columnas: Map<String, Int>, val provVenc: List<String>? = null) {
+        fun pideVencimiento(proveedor: String): Boolean {
+            val lista = provVenc ?: return true
+            val p = norm(proveedor)
+            return lista.any { val k = norm(it); k.isNotEmpty() && (p == k || p.contains(k) || k.contains(p)) }
+        }
+    }
     data class Observacion(val fechaHora: String, val semana: String, val control: String, val texto: String, val usuario: String)
 
     private val credential = GoogleAccountCredential.usingOAuth2(context, listOf(DriveScopes.DRIVE))
@@ -104,6 +118,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
 
     // La lista de pestañas cambia una vez por semana: se consulta como mucho cada 10 minutos (ahorra cuota de Google)
     private var tabCache: String? = null
+    private var provVencCache: List<String>? = null
     private var tabCacheAt = 0L
 
     /** Nombre de la última pestaña (semana vigente), ignorando "Observaciones". */
@@ -112,8 +127,14 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         if (!forzar && cached != null && System.currentTimeMillis() - tabCacheAt < 10 * 60_000L) return cached
         val meta = sheets.spreadsheets().get(sheetId).setFields("sheets.properties.title").execute()
         val titles = meta.sheets.map { it.properties.title }
-        val tab = titles.lastOrNull { !it.equals(OBS_SHEET, ignoreCase = true) }
+        val tab = titles.lastOrNull { !esPestanaEspecial(it) }
             ?: throw IOException("La hoja no tiene pestañas de pedidos")
+        // Lista de proveedores con vencimiento (columna A desde la fila 2); se refresca junto con las pestañas
+        val provTab = titles.firstOrNull { norm(it) == norm(PROV_VENC_SHEET) }
+        provVencCache = provTab?.let { t ->
+            (sheets.spreadsheets().values().get(sheetId, "'$t'!A2:A").execute().getValues() ?: emptyList())
+                .mapNotNull { r -> r.firstOrNull()?.toString()?.trim()?.takeIf { it.isNotEmpty() } }
+        }
         tabCache = tab; tabCacheAt = System.currentTimeMillis()
         return tab
     }
@@ -127,7 +148,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             // La pestaña guardada ya no existe (renombrada/borrada): vuelve a leer la lista
             if (e.statusCode == 400 && !forzarPestanas) return cargarSemana(true) else throw e
         }
-        if (values.isEmpty()) return Semana(tab, emptyList(), emptyMap())
+        if (values.isEmpty()) return Semana(tab, emptyList(), emptyMap(), provVencCache)
 
         val header = values[0].map { norm(it?.toString()) }
         /** Busca la columna cuyo encabezado sea igual o contenga alguno de los nombres (sin acentos/espacios). */
@@ -149,7 +170,8 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             "unidad" to col("Unidad de medida", "Unidad", "Und"),
             "estado" to col("Estado"),
             "venc" to col(COL_VENC, "Vencimiento"),
-            "obs" to col(COL_OBS, "Observacion")
+            "obs" to col(COL_OBS, "Observacion"),
+            "nollego" to col(COL_NO_LLEGO, "No llego", "Falta")
         )
         if (columnas["proveedor"]!! < 0) {
             throw IOException("La pestaña '$tab' no tiene una columna de proveedor en la fila 1")
@@ -174,10 +196,11 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
                     cell(row, "estado").ifBlank { ESTADO_PENDIENTE }, mutableListOf())
             }
             pedido.lineas += Linea(filaHoja, cell(row, "numero").ifBlank { (pedido.lineas.size + 1).toString() },
-                cell(row, "codigo"), cell(row, "descripcion"), cell(row, "cantidad"), cell(row, "unidad"), cell(row, "venc"))
+                cell(row, "codigo"), cell(row, "descripcion"), cell(row, "cantidad"), cell(row, "unidad"), cell(row, "venc"),
+                esSi(cell(row, "nollego")))
             if (esListo(cell(row, "estado"))) pedido.estado = ESTADO_LISTO
         }
-        return Semana(tab, pedidos.values.toList(), columnas)
+        return Semana(tab, pedidos.values.toList(), columnas, provVencCache)
     }
 
     fun observaciones(semana: String, clave: String): List<Observacion> = try {
@@ -213,6 +236,21 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         if (data.isNotEmpty()) {
             sheets.spreadsheets().values().batchUpdate(sheetId,
                 com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest().setValueInputOption("USER_ENTERED").setData(data)
+            ).execute()
+        }
+    }
+
+    /** Escribe SÍ / NO en la columna "No llegó" para cada ítem del pedido (la crea si no existe). */
+    fun guardarNoLlego(semana: Semana, pedido: Pedido) {
+        var col = semana.columnas["nollego"] ?: -1
+        if (col < 0) col = columnaOCrear(semana.tab, COL_NO_LLEGO)
+        val letter = colLetter(col)
+        val data = pedido.lineas.map { l ->
+            ValueRange().setRange("'${semana.tab}'!$letter${l.fila}").setValues(listOf(listOf(if (l.noLlego) "SÍ" else "NO")))
+        }
+        if (data.isNotEmpty()) {
+            sheets.spreadsheets().values().batchUpdate(sheetId,
+                com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest().setValueInputOption("RAW").setData(data)
             ).execute()
         }
     }
