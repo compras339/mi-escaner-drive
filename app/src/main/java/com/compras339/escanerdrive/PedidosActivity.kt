@@ -17,6 +17,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -24,6 +25,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.material.button.MaterialButton
 import com.google.api.client.http.InputStreamContent
 import com.google.api.services.drive.model.File as DriveFile
@@ -49,6 +51,8 @@ class PedidosActivity : AppCompatActivity() {
         const val EXTRA_SEDE_KEYS = "sede_keys"
         const val EXTRA_PEDIDO_JSON = "pedido_json"
         const val EXTRA_SEMANA = "semana"
+        /** true = Pedidos es la pantalla principal (usuarios "solo pedidos"): sin flecha de volver y atrás sale de la app. */
+        const val EXTRA_PRINCIPAL = "principal"
         private val BG = Color.parseColor("#16212E")
         private val INK = Color.parseColor("#16212E")
         private val MUTED = Color.parseColor("#5F6E7E")
@@ -104,8 +108,20 @@ class PedidosActivity : AppCompatActivity() {
         progress = findViewById(R.id.progress)
         etBuscar = findViewById(R.id.etBuscar)
 
-        findViewById<ImageButton>(R.id.btnBack).setOnClickListener { finish() }
-        findViewById<ImageButton>(R.id.btnRefresh).setOnClickListener { cargar() }
+        val btnBack = findViewById<ImageButton>(R.id.btnBack)
+        val btnRefresh = findViewById<ImageButton>(R.id.btnRefresh)
+        btnRefresh.setOnClickListener { cargar() }
+        if (intent.getBooleanExtra(EXTRA_PRINCIPAL, false)) {
+            // Pantalla principal: no hay a dónde volver
+            btnBack.visibility = View.GONE
+            onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() { finishAffinity() }   // cierra la app sin mostrar la pantalla de inicio
+            })
+            // Mantener pulsado "actualizar" → opciones de cuenta (cerrar sesión)
+            btnRefresh.setOnLongClickListener { opcionesCuenta(account.email ?: "cuenta"); true }
+        } else {
+            btnBack.setOnClickListener { finish() }
+        }
         findViewById<MaterialButton>(R.id.btnSinPedido).setOnClickListener { escanearSinPedido() }
         etBuscar.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -119,6 +135,21 @@ class PedidosActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (semana != null) cargar()   // al volver del detalle, refresca estados y vencimientos
+    }
+
+    private fun opcionesCuenta(email: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Cuenta")
+            .setMessage(email)
+            .setPositiveButton("Cerrar sesión") { _, _ ->
+                GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut().addOnCompleteListener {
+                    startActivity(Intent(this, MainActivity::class.java).addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                    finish()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     // ---------- Carga ----------
