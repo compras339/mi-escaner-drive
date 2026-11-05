@@ -56,13 +56,22 @@ jobs:
           name: EscanerCompras-v${{ env.VER }}-build${{ github.run_number }}
           path: EscanerCompras.apk
 
+      # Publica la Release con la CLI oficial de GitHub. Si ya existe una Release con esta
+      # etiqueta (p. ej. por un re-run), se borra y se vuelve a crear con el APK.
       - name: Publish Release
         if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.VER }}-build${{ github.run_number }}
-          name: Escáner de Compras v${{ env.VER }} (build ${{ github.run_number }})
-          body: |
-            Versión ${{ env.VER }}, build ${{ github.run_number }}.
-            Descarga directa: https://github.com/${{ github.repository }}/releases/latest/download/EscanerCompras.apk
-          files: EscanerCompras.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ env.VER }}-build${{ github.run_number }}
+        run: |
+          gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
+          for i in 1 2 3; do
+            if gh release create "$TAG" EscanerCompras.apk \
+                 --title "Escáner de Compras v${{ env.VER }} (build ${{ github.run_number }})" \
+                 --notes "Versión ${{ env.VER }}, build ${{ github.run_number }}. Descarga directa: https://github.com/${{ github.repository }}/releases/latest/download/EscanerCompras.apk"; then
+              echo "Release publicada: $TAG"; exit 0
+            fi
+            echo "Intento $i falló; reintentando en 15 s…"; sleep 15
+            gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
+          done
+          echo "No se pudo publicar la Release"; exit 1
