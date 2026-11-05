@@ -255,6 +255,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
                     }
                 }
                 if (obs.isNotEmpty()) { etObs.setText(""); cargarAnteriores() }
+                PedidosActivity.recargarAlVolver = true   // la lista no debe mostrar las marcas viejas
                 toast("Guardado en la hoja de pedidos")
             } catch (e: Exception) {
                 Log.e(TAG, "Error al guardar", e)
@@ -380,6 +381,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
                     }
                     repo.marcarEstado(semana, pedido, PedidosRepo.ESTADO_LISTO)
                 }
+                PedidosActivity.recargarAlVolver = true
                 pintarEstado()
                 cargarFotos()
                 toast("${subidos.size} foto(s) guardadas para ${pedido.proveedor}")
