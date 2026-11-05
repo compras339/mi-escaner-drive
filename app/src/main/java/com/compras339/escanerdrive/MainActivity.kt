@@ -379,6 +379,8 @@ class MainActivity : AppCompatActivity() {
                 btnGallery.visibility = View.GONE
             }
             showLoading(false)
+            // En "solo pedidos" el aviso de actualización lo muestra Pedidos (aquí quedaría oculto detrás)
+            if (soloPedidos) updateChecked = true
             showContent()
             if (soloGastos) {
                 setStatus("Acceso a Gastos. Usa el botón «Gastos →» para registrar un soporte.")
