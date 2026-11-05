@@ -52,6 +52,11 @@ class PedidoDetalleActivity : AppCompatActivity() {
         const val EXTRA_COL_VENC = "col_venc"
         const val EXTRA_COL_ESTADO = "col_estado"
         const val EXTRA_COL_OBS = "col_obs"
+        const val EXTRA_COL_NO_LLEGO = "col_no_llego"
+        /** false = este proveedor no está en la pestaña "Proveedores vencimiento": no se muestra la fecha. */
+        const val EXTRA_PIDE_VENC = "pide_venc"
+        private val ROJO = Color.parseColor("#C62828")
+        private val ROJO_FONDO = Color.parseColor("#FDE4E4")
         private val BG = Color.parseColor("#16212E")
         private val INK = Color.parseColor("#16212E")
         private val MUTED = Color.parseColor("#5F6E7E")
@@ -75,6 +80,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
     private lateinit var btnGuardar: MaterialButton
     private lateinit var btnEscanear: MaterialButton
     private val fechaFields = mutableMapOf<Int, TextView>()
+    private var pideVenc = true
 
     private val scannerLauncher =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -97,7 +103,9 @@ class PedidoDetalleActivity : AppCompatActivity() {
         semanaTab = intent.getStringExtra(PedidosActivity.EXTRA_SEMANA) ?: ""
         semana = PedidosRepo.Semana(semanaTab, emptyList(), mapOf(
             "venc" to intent.getIntExtra(EXTRA_COL_VENC, -1), "estado" to intent.getIntExtra(EXTRA_COL_ESTADO, -1),
-            "obs" to intent.getIntExtra(EXTRA_COL_OBS, -1)))
+            "obs" to intent.getIntExtra(EXTRA_COL_OBS, -1),
+            "nollego" to intent.getIntExtra(EXTRA_COL_NO_LLEGO, -1)))
+        pideVenc = intent.getBooleanExtra(EXTRA_PIDE_VENC, true)
         val sedesUsuario = (intent.getStringArrayListExtra(PedidosActivity.EXTRA_SEDE_KEYS) ?: arrayListOf()).mapNotNull { Brands.sedeByKey(it) }
         sede = PedidosActivity.SEDE_PEDIDOS   // esta vista es de Centro de Producción
 
@@ -118,6 +126,10 @@ class PedidoDetalleActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvFecha).text = pedido.fecha
         findViewById<TextView>(R.id.tvSede).text = "CENTRO DE PRODUCCIÓN"
         findViewById<TextView>(R.id.tvHeadItems).text = "ÍTEM · ${pedido.lineas.size}"
+        findViewById<TextView>(R.id.tvHeadVenc).visibility = if (pideVenc) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.tvAyudaLineas).text =
+            (if (pideVenc) "Toca la fecha de vencimiento de cada ítem para editarla. " else "") +
+            "Marca la casilla ✕ si el producto no llegó. Pulsa Guardar para registrarlo en la hoja de pedidos."
         pintarEstado()
 
         etObs.addTextChangedListener(object : TextWatcher {
@@ -145,14 +157,35 @@ class PedidoDetalleActivity : AppCompatActivity() {
                 setPadding((10 * dp).toInt(), (10 * dp).toInt(), (10 * dp).toInt(), (10 * dp).toInt())
                 if (idx < pedido.lineas.size - 1) background = android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE) }
             }
-            row.addView(TextView(this).apply { text = l.numero; setTextColor(MUTED); textSize = 13f; setTypeface(typeface, Typeface.BOLD)
-                layoutParams = LinearLayout.LayoutParams((26 * dp).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT) })
+            // Casilla "no llegó": al marcarla muestra ✕ y resalta el ítem en rojo
+            val check = TextView(this).apply {
+                gravity = Gravity.CENTER; textSize = 16f; setTypeface(typeface, Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams((26 * dp).toInt(), (26 * dp).toInt()).apply { setMargins(0, 0, (10 * dp).toInt(), 0) }
+                contentDescription = "No llegó"
+            }
+            row.addView(check)
+            val tvDesc = TextView(this).apply { text = l.descripcion; textSize = 13f; setTypeface(typeface, Typeface.BOLD) }
+            val tvFalta = TextView(this).apply { text = "NO LLEGÓ"; setTextColor(ROJO); textSize = 10f; setTypeface(typeface, Typeface.BOLD) }
             row.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                addView(TextView(context).apply { text = l.descripcion; setTextColor(INK); textSize = 13f; setTypeface(typeface, Typeface.BOLD) })
+                addView(tvDesc)
                 if (l.codigo.isNotBlank()) addView(TextView(context).apply { text = "Código: ${l.codigo}"; setTextColor(MUTED); textSize = 11f })
+                addView(tvFalta)
             })
+            fun pintarNoLlego() {
+                check.text = if (l.noLlego) "✕" else ""
+                check.setTextColor(Color.WHITE)
+                check.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 6 * dp
+                    if (l.noLlego) setColor(ROJO) else { setColor(Color.WHITE); setStroke((2 * dp).toInt(), Color.parseColor("#9AA7B5")) }
+                }
+                row.background = android.graphics.drawable.GradientDrawable().apply { setColor(if (l.noLlego) ROJO_FONDO else Color.WHITE) }
+                tvDesc.setTextColor(if (l.noLlego) ROJO else INK)
+                tvFalta.visibility = if (l.noLlego) View.VISIBLE else View.GONE
+            }
+            check.setOnClickListener { l.noLlego = !l.noLlego; pintarNoLlego() }
+            pintarNoLlego()
             row.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL; gravity = Gravity.END
                 layoutParams = LinearLayout.LayoutParams((64 * dp).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -166,7 +199,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
             }
             pintarFecha(fecha, l.vencimiento)
             fechaFields[l.fila] = fecha
-            row.addView(fecha)
+            if (pideVenc) row.addView(fecha)
             layoutLineas.addView(row)
             if (idx < pedido.lineas.size - 1) layoutLineas.addView(View(this).apply {
                 setBackgroundColor(Color.parseColor("#EEF1F5"))
@@ -213,7 +246,8 @@ class PedidoDetalleActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    repo.guardarVencimientos(semana, pedido)
+                    if (pideVenc) repo.guardarVencimientos(semana, pedido)
+                    repo.guardarNoLlego(semana, pedido)
                     if (obs.isNotEmpty()) {
                         repo.guardarObservacion(semanaTab, pedido, obs, account.email ?: "")
                         // También queda en la columna "Observaciones" de la pestaña de la semana
