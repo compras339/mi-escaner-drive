@@ -117,8 +117,12 @@ class PedidosActivity : AppCompatActivity() {
             onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() { finishAffinity() }   // cierra la app sin mostrar la pantalla de inicio
             })
-            // Mantener pulsado "actualizar" → opciones de cuenta (cerrar sesión)
-            btnRefresh.setOnLongClickListener { opcionesCuenta(account.email ?: "cuenta"); true }
+            // Botón visible "Cerrar sesión" abajo: vuelve a la pantalla principal de la app (inicio de sesión)
+            findViewById<MaterialButton>(R.id.btnCerrarSesion).apply {
+                text = "Cerrar sesión (${account.email ?: "cuenta"})"
+                visibility = View.VISIBLE
+                setOnClickListener { opcionesCuenta(account.email ?: "cuenta") }
+            }
         } else {
             btnBack.setOnClickListener { finish() }
         }
@@ -139,8 +143,8 @@ class PedidosActivity : AppCompatActivity() {
 
     private fun opcionesCuenta(email: String) {
         AlertDialog.Builder(this)
-            .setTitle("Cuenta")
-            .setMessage(email)
+            .setTitle("¿Cerrar sesión?")
+            .setMessage("Se cerrará la sesión de $email y volverás a la pantalla principal de la app.")
             .setPositiveButton("Cerrar sesión") { _, _ ->
                 GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut().addOnCompleteListener {
                     startActivity(Intent(this, MainActivity::class.java).addFlags(
