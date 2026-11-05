@@ -110,7 +110,7 @@ class PedidosActivity : AppCompatActivity() {
 
         val btnBack = findViewById<ImageButton>(R.id.btnBack)
         val btnRefresh = findViewById<ImageButton>(R.id.btnRefresh)
-        btnRefresh.setOnClickListener { cargar() }
+        btnRefresh.setOnClickListener { cargar(forzarPestanas = true) }
         if (intent.getBooleanExtra(EXTRA_PRINCIPAL, false)) {
             // Pantalla principal: no hay a dónde volver
             btnBack.visibility = View.GONE
@@ -139,7 +139,8 @@ class PedidosActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (semana != null) cargar()   // al volver del detalle, refresca estados y vencimientos
+        // Al volver (del detalle, la cámara, desbloquear el teléfono…) refresca, pero no más de una vez cada 20 s
+        if (semana != null && System.currentTimeMillis() - ultimaCarga > 20_000L) cargar()
     }
 
     /** Aviso de versión nueva (en "solo pedidos" esta es la pantalla principal, así que el aviso va aquí). */
@@ -186,19 +187,37 @@ class PedidosActivity : AppCompatActivity() {
 
     // ---------- Carga ----------
 
-    private fun cargar() {
+    private var cargando = false
+    private var ultimaCarga = 0L
+    private var reintento: kotlinx.coroutines.Job? = null
+
+    private fun cargar(forzarPestanas: Boolean = false) {
+        if (cargando) return   // evita lecturas duplicadas en paralelo
+        cargando = true
+        reintento?.cancel()
         setLoading(true)
         lifecycleScope.launch {
             try {
-                val s = withContext(Dispatchers.IO) { repo.cargarSemana() }
+                val s = withContext(Dispatchers.IO) { repo.cargarSemana(forzarPestanas) }
                 semana = s
                 tvEstado.visibility = View.GONE
                 pintar()
             } catch (e: Exception) {
                 Log.e(TAG, "Error al cargar pedidos", e)
-                tvEstado.text = "No se pudo leer la hoja de pedidos:\n${e.localizedMessage}"
+                val limite = (e as? com.google.api.client.googleapis.json.GoogleJsonResponseException)?.statusCode == 429
+                if (limite) {
+                    // Cuota de Google (60 lecturas/min por cuenta): esperar y reintentar solo
+                    tvEstado.text = "Google limitó las consultas por un momento.\nReintentando en 1 minuto…"
+                    reintento = lifecycleScope.launch { kotlinx.coroutines.delay(65_000L); cargar() }
+                } else {
+                    tvEstado.text = "No se pudo leer la hoja de pedidos.\n${(e as? com.google.api.client.googleapis.json.GoogleJsonResponseException)?.details?.message ?: e.localizedMessage}\n\nToca ↻ para reintentar."
+                }
                 tvEstado.visibility = View.VISIBLE
-            } finally { setLoading(false) }
+            } finally {
+                ultimaCarga = System.currentTimeMillis()
+                cargando = false
+                setLoading(false)
+            }
         }
     }
 
