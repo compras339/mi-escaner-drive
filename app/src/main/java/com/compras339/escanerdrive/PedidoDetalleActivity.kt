@@ -51,6 +51,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
         const val EXTRA_ESCANEAR = "escanear"
         const val EXTRA_COL_VENC = "col_venc"
         const val EXTRA_COL_ESTADO = "col_estado"
+        const val EXTRA_COL_OBS = "col_obs"
         private val BG = Color.parseColor("#16212E")
         private val INK = Color.parseColor("#16212E")
         private val MUTED = Color.parseColor("#5F6E7E")
@@ -95,7 +96,8 @@ class PedidoDetalleActivity : AppCompatActivity() {
         pedido = PedidosRepo.Pedido.fromJson(intent.getStringExtra(PedidosActivity.EXTRA_PEDIDO_JSON) ?: "{}")
         semanaTab = intent.getStringExtra(PedidosActivity.EXTRA_SEMANA) ?: ""
         semana = PedidosRepo.Semana(semanaTab, emptyList(), mapOf(
-            "venc" to intent.getIntExtra(EXTRA_COL_VENC, -1), "estado" to intent.getIntExtra(EXTRA_COL_ESTADO, -1)))
+            "venc" to intent.getIntExtra(EXTRA_COL_VENC, -1), "estado" to intent.getIntExtra(EXTRA_COL_ESTADO, -1),
+            "obs" to intent.getIntExtra(EXTRA_COL_OBS, -1)))
         val sedesUsuario = (intent.getStringArrayListExtra(PedidosActivity.EXTRA_SEDE_KEYS) ?: arrayListOf()).mapNotNull { Brands.sedeByKey(it) }
         sede = PedidosActivity.SEDE_PEDIDOS   // esta vista es de Centro de Producción
 
@@ -212,7 +214,11 @@ class PedidoDetalleActivity : AppCompatActivity() {
             try {
                 withContext(Dispatchers.IO) {
                     repo.guardarVencimientos(semana, pedido)
-                    if (obs.isNotEmpty()) repo.guardarObservacion(semanaTab, pedido, obs, account.email ?: "")
+                    if (obs.isNotEmpty()) {
+                        repo.guardarObservacion(semanaTab, pedido, obs, account.email ?: "")
+                        // También queda en la columna "Observaciones" de la pestaña de la semana
+                        repo.escribirObservacionesEnSemana(semana, pedido)
+                    }
                 }
                 if (obs.isNotEmpty()) { etObs.setText(""); cargarAnteriores() }
                 toast("Guardado en la hoja de pedidos")
