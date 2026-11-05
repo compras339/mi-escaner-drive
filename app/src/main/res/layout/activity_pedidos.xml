@@ -164,4 +164,22 @@
             android:paddingEnd="14dp"
             android:paddingBottom="16dp" />
     </ScrollView>
+
+    <!-- Cerrar sesión: solo cuando Pedidos es la pantalla principal (cuentas "solo pedidos") -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCerrarSesion"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="14dp"
+        android:layout_marginBottom="10dp"
+        android:text="Cerrar sesión"
+        android:textAllCaps="false"
+        android:textColor="#3A4756"
+        android:visibility="gone"
+        app:strokeColor="#7A8A99"
+        tools:ignore="HardcodedText"
+        tools:visibility="visible" />
 </LinearLayout>
