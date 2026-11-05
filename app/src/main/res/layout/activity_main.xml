@@ -27,6 +27,32 @@
     android:paddingEnd="24dp"
     android:paddingBottom="12dp">
 
+    <!-- Píldora de acceso a Pedidos (solo con el módulo PEDIDOS) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPedidos"
+        android:layout_width="wrap_content"
+        android:layout_height="34dp"
+        android:layout_marginEnd="6dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="10dp"
+        android:text="Pedidos"
+        android:textAllCaps="false"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:cornerRadius="17dp"
+        app:icon="@drawable/ic_arrow_forward"
+        app:iconGravity="end"
+        app:iconPadding="4dp"
+        app:iconSize="18dp"
+        app:layout_constraintBottom_toBottomOf="@id/tvTitle"
+        app:layout_constraintEnd_toStartOf="@id/btnGastos"
+        app:layout_constraintTop_toTopOf="@id/tvTitle"
+        tools:ignore="HardcodedText"
+        tools:visibility="visible" />
+
     <!-- Píldora de acceso a Gastos (solo con el módulo GASTOS) -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnGastos"
@@ -65,7 +91,7 @@
         app:autoSizeMaxTextSize="28sp"
         app:autoSizeMinTextSize="14sp"
         app:autoSizeTextType="uniform"
-        app:layout_constraintEnd_toStartOf="@id/btnGastos"
+        app:layout_constraintEnd_toStartOf="@id/btnPedidos"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="HardcodedText" />

@@ -93,6 +93,10 @@ dependencies {
     implementation(libs.google.api.services.drive) {
         exclude(group = "org.apache.httpcomponents")
     }
+    // Google Sheets API v4 (lista de pedidos, vencimientos y observaciones)
+    implementation("com.google.apis:google-api-services-sheets:v4-rev20230815-2.0.0") {
+        exclude(group = "org.apache.httpcomponents")
+    }
 
     // Corrutinas
     implementation(libs.kotlinx.coroutines.android)

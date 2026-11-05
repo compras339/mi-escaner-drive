@@ -102,6 +102,9 @@ class MainActivity : AppCompatActivity() {
          */
         const val PERMISSIONS_SHEET_ID = "1C-Vu0VZ6aUGngFNJ-LXYSF9BaujQW-BUiOsO4X4Mdvc"
 
+        /** ID de la hoja "planificacion de compras" (cada pestaña = una semana). URL: docs.google.com/spreadsheets/d/{ID}/edit */
+        const val PEDIDOS_SHEET_ID = "1O3gRgpuSnIYsy9p8zykKRntOK0jDxr2wrWxGL0NRHx0"
+
         const val EXTRA_BRAND_ID = "brand_id"
         const val EXTRA_SEDE_KEYS = "sede_keys"
 
@@ -128,6 +131,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGallery: MaterialButton
     private lateinit var btnCierre: MaterialButton
     private lateinit var btnGastos: MaterialButton
+    private lateinit var btnPedidos: MaterialButton
     private lateinit var fabWhatsapp: com.google.android.material.floatingactionbutton.FloatingActionButton
     private lateinit var whatsappFloat: LinearLayout
     private lateinit var btnSignIn: MaterialButton
@@ -225,6 +229,7 @@ class MainActivity : AppCompatActivity() {
         btnGallery = findViewById(R.id.btnGallery)
         btnCierre = findViewById(R.id.btnCierre)
         btnGastos = findViewById(R.id.btnGastos)
+        btnPedidos = findViewById(R.id.btnPedidos)
         fabWhatsapp = findViewById(R.id.fabWhatsapp)
         whatsappFloat = findViewById(R.id.whatsappFloat)
         btnSignIn = findViewById(R.id.btnSignIn)
@@ -242,6 +247,11 @@ class MainActivity : AppCompatActivity() {
         btnWelcomeSignIn.setOnClickListener { signIn() }
         btnCierre.setOnClickListener { onCierreClicked() }
         setupWhatsappBubble()
+        btnPedidos.setOnClickListener {
+            startActivity(Intent(this, PedidosActivity::class.java).apply {
+                putStringArrayListExtra(PedidosActivity.EXTRA_SEDE_KEYS, ArrayList(allowedSedes.map { it.key }))
+            })
+        }
         btnGastos.setOnClickListener {
             startActivity(Intent(this, GastosActivity::class.java).apply {
                 putStringArrayListExtra(GastosActivity.EXTRA_SEDE_KEYS, ArrayList(allowedSedes.map { it.key }))
@@ -323,6 +333,7 @@ class MainActivity : AppCompatActivity() {
         btnGallery.visibility = View.GONE
         btnCierre.visibility = View.GONE
         btnGastos.visibility = View.GONE
+        btnPedidos.visibility = View.GONE
         allowedModules = emptySet()
         hideStatus()
         showWelcome(loading = false)
@@ -355,9 +366,12 @@ class MainActivity : AppCompatActivity() {
             // Gastos: solo para quien tenga el módulo en la columna "Módulos" (compras@ siempre)
             btnGastos.visibility = if (Brands.MODULE_GASTOS in allowedModules && sedes.isNotEmpty()) View.VISIBLE else View.GONE
 
-            // Usuario "SOLO GASTOS": sin escaneo, cierre ni galería; se abre Gastos directamente
-            val soloGastos = Brands.MODULE_SOLO_GASTOS in allowedModules && sedes.isNotEmpty()
-            if (soloGastos) {
+            btnPedidos.visibility = if (Brands.MODULE_PEDIDOS in allowedModules) View.VISIBLE else View.GONE
+
+            // Usuarios "SOLO GASTOS" / "SOLO PEDIDOS": sin escaneo, cierre ni galería; se abre su pantalla directamente
+            val soloPedidos = Brands.MODULE_SOLO_PEDIDOS in allowedModules
+            val soloGastos = !soloPedidos && Brands.MODULE_SOLO_GASTOS in allowedModules && sedes.isNotEmpty()
+            if (soloGastos || soloPedidos) {
                 scrollSedes.visibility = View.GONE
                 btnCierre.visibility = View.GONE
                 btnGallery.visibility = View.GONE
@@ -368,12 +382,16 @@ class MainActivity : AppCompatActivity() {
                 setStatus("Acceso a Gastos. Usa el botón «Gastos →» para registrar un soporte.")
                 if (autoOpenGastos) btnGastos.performClick()
             }
+            if (soloPedidos) {
+                setStatus("Acceso a Pedidos. Usa el botón «Pedidos →» para ver los pedidos de la semana.")
+                if (autoOpenGastos) btnPedidos.performClick()
+            }
             autoOpenGastos = false
 
             when {
                 error != null -> setStatus("No se pudieron cargar los permisos:\n$error\n\nMantén pulsado el botón de cuenta para reintentar.")
                 sedes.isEmpty() -> setStatus("Esta cuenta no tiene ninguna sede asignada.\nContacta al administrador.")
-                soloGastos -> Unit     // conserva el mensaje de acceso a Gastos
+                soloGastos || soloPedidos -> Unit     // conserva el mensaje de acceso
                 else -> hideStatus()   // en reposo no mostramos nada: el correo ya se ve en el botón de cuenta
             }
         }
@@ -515,6 +533,9 @@ class MainActivity : AppCompatActivity() {
         btnGastos.backgroundTintList = ColorStateList.valueOf(accent)
         btnGastos.setTextColor(if (brand.headerColor != null) brand.backgroundColor else brand.onPrimaryColor)
         btnGastos.iconTint = ColorStateList.valueOf(if (brand.headerColor != null) brand.backgroundColor else brand.onPrimaryColor)
+        btnPedidos.backgroundTintList = btnGastos.backgroundTintList
+        btnPedidos.setTextColor(btnGastos.textColors)
+        btnPedidos.iconTint = btnGastos.iconTint
         btnSignIn.rippleColor = ColorStateList.valueOf(brand.tonalColor)
 
         sedeButtons.values.forEach { styleSedeButton(it, brand) }

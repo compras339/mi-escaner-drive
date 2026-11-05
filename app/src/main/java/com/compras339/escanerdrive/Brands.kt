@@ -222,12 +222,16 @@ object Brands {
     const val MODULE_CIERRE = "CIERRE"
     /** Acceso exclusivo a Gastos: oculta escaneo, cierre y galería; abre Gastos al entrar. */
     const val MODULE_SOLO_GASTOS = "SOLO_GASTOS"
-    val ALL_MODULES = setOf(MODULE_GASTOS, MODULE_CIERRE)
+    const val MODULE_PEDIDOS = "PEDIDOS"
+    const val MODULE_SOLO_PEDIDOS = "SOLO_PEDIDOS"
+    val ALL_MODULES = setOf(MODULE_GASTOS, MODULE_CIERRE, MODULE_PEDIDOS)
 
     /** Traduce una palabra de la hoja (ya normalizada) a módulos; vacío si no es un módulo. */
     fun modulesFromToken(normalizedToken: String): Set<String> = when (normalizedToken) {
         "gastos", "gasto" -> setOf(MODULE_GASTOS)
         "sologastos", "sologasto", "gastossolo", "solo" -> setOf(MODULE_GASTOS, MODULE_SOLO_GASTOS)
+        "pedidos", "pedido", "recepcion", "recepciones" -> setOf(MODULE_PEDIDOS)
+        "solopedidos", "solopedido", "pedidossolo" -> setOf(MODULE_PEDIDOS, MODULE_SOLO_PEDIDOS)
         "cierre", "cierres", "cierredecaja" -> setOf(MODULE_CIERRE)
         "todos" -> ALL_MODULES
         else -> emptySet()
