@@ -142,6 +142,8 @@
         android:id="@+id/tvEstado"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="6"
         android:padding="20dp"
         android:textAlignment="center"
         android:textColor="#3A4756"
