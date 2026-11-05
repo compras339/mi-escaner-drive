@@ -35,7 +35,15 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         const val COL_VENC = "Fecha vencimiento"
         const val COL_OBS = "Observaciones"
         const val ESTADO_PENDIENTE = "PENDIENTE"
+        /** Estado que escribe la app al subir el soporte de un pedido. */
+        const val ESTADO_LISTO = "LISTO"
+        /** Valor antiguo (antes de "LISTO"): se sigue reconociendo como listo. */
         const val ESTADO_CON_SOPORTE = "CON SOPORTE"
+        fun esListo(estado: String?): Boolean =
+            estado.equals(ESTADO_LISTO, true) || estado.equals(ESTADO_CON_SOPORTE, true)
+        /** Marca (appProperties de Drive) de las fotos de "recepción sin pedido". */
+        const val PROP_TIPO = "tipo"
+        const val TIPO_SIN_PEDIDO = "sinpedido"
         private val OBS_HEADER = listOf("Fecha y hora", "Semana", "Pedido", "Proveedor", "Sede", "Observación", "Usuario")
 
         /** Índice de columna (0 = A) → letra A1 ("A", "B", ..., "AA"). */
@@ -167,7 +175,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             }
             pedido.lineas += Linea(filaHoja, cell(row, "numero").ifBlank { (pedido.lineas.size + 1).toString() },
                 cell(row, "codigo"), cell(row, "descripcion"), cell(row, "cantidad"), cell(row, "unidad"), cell(row, "venc"))
-            if (cell(row, "estado").equals(ESTADO_CON_SOPORTE, ignoreCase = true)) pedido.estado = ESTADO_CON_SOPORTE
+            if (esListo(cell(row, "estado"))) pedido.estado = ESTADO_LISTO
         }
         return Semana(tab, pedidos.values.toList(), columnas)
     }
