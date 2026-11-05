@@ -155,7 +155,10 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         fun col(vararg names: String): Int {
             val keys = names.map { norm(it) }
             keys.forEach { k -> header.indexOf(k).takeIf { it >= 0 }?.let { return it } }
-            keys.forEach { k -> header.indexOfFirst { h -> h.isNotEmpty() && (h.startsWith(k) || h.contains(k)) }.takeIf { it >= 0 }?.let { return it } }
+            // Las columnas que escribe la app (vencimiento, observaciones, no llegó) solo se reconocen por su nombre exacto,
+            // para que p. ej. "Fecha" no termine leyendo "Fecha vencimiento"
+            val propias = setOf(norm(COL_VENC), norm(COL_OBS), norm(COL_NO_LLEGO))
+            keys.forEach { k -> header.indexOfFirst { h -> h.isNotEmpty() && h !in propias && (h.startsWith(k) || h.contains(k)) }.takeIf { it >= 0 }?.let { return it } }
             return -1
         }
         val columnas = mapOf(
