@@ -180,7 +180,7 @@ class PedidosActivity : AppCompatActivity() {
         }
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(context).apply { text = "N° ${p.control}"; setTextColor(MUTED); textSize = 12f; setTypeface(typeface, Typeface.BOLD) })
+            addView(TextView(context).apply { text = "Pedido ${p.control}"; setTextColor(MUTED); textSize = 12f; setTypeface(typeface, Typeface.BOLD) })
             addView(TextView(context).apply { text = "  ${p.fecha}"; setTextColor(MUTED); textSize = 12f
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) })
             addView(TextView(context).apply {
