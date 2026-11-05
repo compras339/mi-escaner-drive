@@ -242,11 +242,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="#FFFFFF"
+        android:baselineAligned="false"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="14dp" android:paddingTop="10dp" android:paddingEnd="14dp" android:paddingBottom="14dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnGuardar"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="13sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            app:iconPadding="6dp"
+            app:iconGravity="textStart"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="0dp"
             android:layout_height="52dp"
@@ -265,6 +274,13 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnEscanear"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="13sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            app:iconPadding="6dp"
+            app:iconGravity="textStart"
             android:layout_width="0dp"
             android:layout_height="52dp"
             android:layout_marginStart="5dp"
