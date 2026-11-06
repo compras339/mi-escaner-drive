@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="#F2F4F7"
     android:orientation="vertical"
-    tools:context=".PedidoDetalleActivity">
+    tools:context=".PedidosActivity">
 
     <!-- Cabecera -->
     <LinearLayout
@@ -17,7 +17,7 @@
         android:orientation="horizontal"
         android:paddingStart="6dp"
         android:paddingTop="12dp"
-        android:paddingEnd="14dp"
+        android:paddingEnd="6dp"
         android:paddingBottom="12dp">
 
         <ImageButton
@@ -47,29 +47,118 @@
                 tools:ignore="HardcodedText" />
 
             <TextView
+                android:id="@+id/tvTitulo"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Orden de compra"
+                android:text="Pedidos"
                 android:textColor="#F4F1EA"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/tvSemana"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#B7C2CE"
+                android:textSize="11sp"
+                tools:text="Semana 45 · última pestaña del archivo · 3 pedidos" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvEstadoPedido"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_chip_dark"
-            android:paddingStart="10dp"
-            android:paddingTop="6dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="6dp"
-            android:textColor="#B7C2CE"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            tools:text="PENDIENTE" />
+        <ImageButton
+            android:id="@+id/btnMensajes"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Escribir a Compras"
+            android:src="@android:drawable/sym_action_chat"
+            app:tint="#F4F1EA"
+            tools:ignore="HardcodedText" />
+
+        <ImageButton
+            android:id="@+id/btnRefresh"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Actualizar"
+            android:src="@android:drawable/ic_popup_sync"
+            app:tint="#F4F1EA"
+            tools:ignore="HardcodedText" />
     </LinearLayout>
+
+    <!-- Buscar proveedor -->
+    <EditText
+        android:id="@+id/etBuscar"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="14dp"
+        android:background="@drawable/bg_search"
+        android:drawableStart="@android:drawable/ic_menu_search"
+        android:drawablePadding="8dp"
+        android:hint="Escribe el proveedor para ubicar el pedido"
+        android:importantForAutofill="no"
+        android:inputType="text"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:textColor="#16212E"
+        android:textColorHint="#7A8A99"
+        android:textSize="13sp"
+        tools:ignore="HardcodedText" />
+
+    <!-- Recepción sin pedido -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnSinPedido"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="14dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:text="Escanear recepción sin pedido"
+        android:textAllCaps="false"
+        android:textColor="#16212E"
+        android:textStyle="bold"
+        app:backgroundTint="#FFF8EA"
+        app:cornerRadius="24dp"
+        app:icon="@android:drawable/ic_menu_camera"
+        app:iconTint="#16212E"
+        app:strokeColor="#F5A524"
+        app:strokeWidth="2dp"
+        tools:ignore="HardcodedText" />
+
+    <!-- Filtros -->
+    <LinearLayout
+        android:id="@+id/layoutFiltros"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="14dp"
+        android:orientation="horizontal" />
+
+    <ProgressBar
+        android:id="@+id/progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="12dp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/tvEstado"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="6"
+        android:padding="20dp"
+        android:textAlignment="center"
+        android:textColor="#3A4756"
+        android:textSize="13sp"
+        android:visibility="gone" />
 
     <ScrollView
         android:layout_width="match_parent"
@@ -78,224 +167,31 @@
         android:scrollbars="none">
 
         <LinearLayout
+            android:id="@+id/layoutPedidos"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingStart="14dp"
-            android:paddingTop="14dp"
+            android:paddingTop="12dp"
             android:paddingEnd="14dp"
-            android:paddingBottom="12dp">
-
-            <!-- Datos del pedido -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_card_light"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <TextView style="@style/PedLabel" android:text="PROVEEDOR" tools:ignore="HardcodedText" />
-                <TextView android:id="@+id/tvProveedor" style="@style/PedValue" tools:text="EL TUNAL C.A." />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="horizontal">
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                        <TextView style="@style/PedLabel" android:text="N° DE CONTROL" tools:ignore="HardcodedText" />
-                        <TextView android:id="@+id/tvControl" style="@style/PedValue" tools:text="003" />
-                    </LinearLayout>
-                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-                        <TextView style="@style/PedLabel" android:text="FECHA DE PEDIDO" tools:ignore="HardcodedText" />
-                        <TextView android:id="@+id/tvFecha" style="@style/PedValue" tools:text="2026-11-02" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-                    <TextView style="@style/PedLabel" android:layout_marginEnd="8dp" android:text="SEDE" tools:ignore="HardcodedText" />
-                    <TextView
-                        android:id="@+id/tvSede"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_chip_light"
-                        android:paddingStart="10dp" android:paddingTop="4dp" android:paddingEnd="10dp" android:paddingBottom="4dp"
-                        android:textColor="#16212E" android:textSize="13sp" android:textStyle="bold"
-                        tools:text="CENTRO DE PRODUCCIÓN" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- Ítems -->
-            <LinearLayout
-                android:id="@+id/cardItems"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_card_light"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_table_head"
-                    android:orientation="horizontal"
-                    android:paddingStart="10dp" android:paddingTop="8dp" android:paddingEnd="10dp" android:paddingBottom="8dp">
-                    <TextView style="@style/PedHead" android:layout_width="36dp" android:text="FALTA" android:textSize="8sp" tools:ignore="HardcodedText" />
-                    <TextView android:id="@+id/tvHeadItems" style="@style/PedHead" android:layout_width="0dp" android:layout_weight="1" android:text="ÍTEM" tools:ignore="HardcodedText" />
-                    <TextView style="@style/PedHead" android:layout_width="64dp" android:gravity="end" android:text="PEDIDO" tools:ignore="HardcodedText" />
-                    <TextView android:id="@+id/tvHeadVenc" style="@style/PedHead" android:layout_width="112dp" android:layout_marginStart="8dp" android:text="VENCIMIENTO" tools:ignore="HardcodedText" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/layoutLineas"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:paddingStart="4dp" android:paddingEnd="4dp"
-                android:id="@+id/tvAyudaLineas"
-                android:text="Toca la fecha de vencimiento de cada ítem para editarla y pulsa Guardar. Las fechas se registran en la hoja de pedidos."
-                android:textColor="#5F6E7E" android:textSize="11sp"
-                tools:ignore="HardcodedText" />
-
-            <!-- Observaciones -->
-            <!-- Observaciones: oculto (no se usa) -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_card_light"
-                android:orientation="vertical"
-                android:padding="14dp"
-                android:visibility="gone">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                    <TextView style="@style/PedLabel" android:layout_width="0dp" android:layout_weight="1" android:text="OBSERVACIONES" tools:ignore="HardcodedText" />
-                    <TextView android:id="@+id/tvObsCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0 / 300" android:textColor="#5F6E7E" android:textSize="11sp" tools:ignore="HardcodedText" />
-                </LinearLayout>
-                <EditText
-                    android:id="@+id/etObs"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:background="@drawable/bg_field_light"
-                    android:gravity="top"
-                    android:hint="Ej.: Llegaron 3500 huevos, faltan 100. Leche con empaque golpeado."
-                    android:importantForAutofill="no"
-                    android:inputType="textMultiLine|textCapSentences"
-                    android:maxLength="300"
-                    android:minLines="3"
-                    android:padding="10dp"
-                    android:textColor="#16212E"
-                    android:textColorHint="#8C9AAA"
-                    android:textSize="13sp"
-                    tools:ignore="HardcodedText" />
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp"
-                    android:text="Se guarda con fecha, hora, pedido y quien la escribe en la hoja «Observaciones»."
-                    android:textColor="#5F6E7E" android:textSize="11sp" tools:ignore="HardcodedText" />
-            </LinearLayout>
-
-            <!-- Anteriores -->
-            <LinearLayout
-                android:id="@+id/cardAnteriores"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_card_light"
-                android:orientation="vertical"
-                android:padding="14dp"
-                android:visibility="gone">
-                <TextView style="@style/PedLabel" android:text="ANTERIORES" tools:ignore="HardcodedText" />
-                <LinearLayout android:id="@+id/layoutAnteriores" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:orientation="vertical" />
-            </LinearLayout>
-
-            <!-- Soportes escaneados -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/bg_card_light"
-                android:orientation="vertical"
-                android:padding="14dp">
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                    <TextView style="@style/PedLabel" android:layout_width="0dp" android:layout_weight="1" android:text="SOPORTES ESCANEADOS" tools:ignore="HardcodedText" />
-                    <TextView android:id="@+id/tvFotosCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#16212E" android:textSize="12sp" android:textStyle="bold" tools:text="2 fotos" />
-                </LinearLayout>
-                <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:scrollbars="none">
-                    <LinearLayout android:id="@+id/layoutFotos" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" />
-                </HorizontalScrollView>
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
-                    android:text="Toca una foto para verla completa. Puedes escanear tantas facturas como traiga el pedido."
-                    android:textColor="#5F6E7E" android:textSize="11sp" tools:ignore="HardcodedText" />
-            </LinearLayout>
-        </LinearLayout>
+            android:paddingBottom="16dp" />
     </ScrollView>
 
-    <!-- Pie fijo -->
-    <LinearLayout
+    <!-- Cerrar sesión: solo cuando Pedidos es la pantalla principal (cuentas "solo pedidos") -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCerrarSesion"
+        style="@style/Widget.Material3.Button.OutlinedButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FFFFFF"
-        android:baselineAligned="false"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="14dp" android:paddingTop="10dp" android:paddingEnd="14dp" android:paddingBottom="14dp">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnGuardar"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textSize="13sp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            app:iconPadding="6dp"
-            app:iconGravity="textStart"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="0dp"
-            android:layout_height="52dp"
-            android:layout_marginEnd="5dp"
-            android:layout_weight="1"
-            android:insetTop="0dp" android:insetBottom="0dp"
-            android:text="GUARDAR"
-            android:textColor="#16212E"
-            android:textStyle="bold"
-            app:cornerRadius="26dp"
-            app:icon="@android:drawable/ic_menu_save"
-            app:iconTint="#16212E"
-            app:strokeColor="#16212E"
-            app:strokeWidth="2dp"
-            tools:ignore="HardcodedText" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnEscanear"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textSize="13sp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            app:iconPadding="6dp"
-            app:iconGravity="textStart"
-            android:layout_width="0dp"
-            android:layout_height="52dp"
-            android:layout_marginStart="5dp"
-            android:layout_weight="1.3"
-            android:insetTop="0dp" android:insetBottom="0dp"
-            android:text="ESCANEAR SOPORTE"
-            android:textColor="#16212E"
-            android:textStyle="bold"
-            app:backgroundTint="#F5A524"
-            app:cornerRadius="26dp"
-            app:icon="@android:drawable/ic_menu_camera"
-            app:iconTint="#16212E"
-            tools:ignore="HardcodedText" />
-    </LinearLayout>
+        android:layout_marginStart="14dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="14dp"
+        android:layout_marginBottom="10dp"
+        android:text="Cerrar sesión"
+        android:textAllCaps="false"
+        android:textColor="#3A4756"
+        android:visibility="gone"
+        app:strokeColor="#7A8A99"
+        tools:ignore="HardcodedText"
+        tools:visibility="visible" />
 </LinearLayout>
