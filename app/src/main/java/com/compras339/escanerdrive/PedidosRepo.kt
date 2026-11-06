@@ -35,10 +35,36 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         const val COL_VENC = "Fecha vencimiento"
         const val COL_OBS = "Observaciones"
         const val COL_NO_LLEGO = "No llegó"
+        const val COL_RECIBIDO = "Recibido"
+        const val COL_FECHA_RECIBIDO = "Fecha recibido"
+        const val MSG_SHEET = "Mensajes"
+        private val MSG_HEADER = listOf("Fecha y hora", "Usuario", "Mensaje", "Respuesta", "Fecha respuesta")
+
+        /** Fecha y hora actual en formato que Sheets reconoce en cualquier idioma (aaaa-mm-dd hh:mm). */
+        fun ahora(): String = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(Date())
+
+        /** Lee un número escrito en la hoja ("25,7", "1.250,5", "25.7") → Double, o null si está vacío o no es número. */
+        fun numero(txt: String?): Double? {
+            var t = (txt ?: "").trim().replace(" ", "")
+            if (t.isEmpty()) return null
+            t = when {
+                t.contains(',') -> t.replace(".", "").replace(',', '.')
+                Regex("""^-?\d{1,3}(\.\d{3})+$""").matches(t) -> t.replace(".", "")
+                else -> t
+            }
+            return t.toDoubleOrNull()
+        }
+
+        /** 25.7 → "25,7" · 3.0 → "3" (máximo 3 decimales). */
+        fun formatoNum(v: Double): String {
+            val r = Math.round(v * 1000.0) / 1000.0
+            return if (r == Math.floor(r)) r.toLong().toString() else r.toString().replace('.', ',')
+        }
         /** Pestaña donde la usuaria lista los proveedores a los que se les pide fecha de vencimiento. */
         const val PROV_VENC_SHEET = "Proveedores vencimiento"
         /** Pestañas que no son semanas de pedidos. */
-        private fun esPestanaEspecial(t: String) = norm(t) == norm(OBS_SHEET) || norm(t) == norm(PROV_VENC_SHEET)
+        private fun esPestanaEspecial(t: String) =
+            norm(t) == norm(OBS_SHEET) || norm(t) == norm(PROV_VENC_SHEET) || norm(t) == norm(MSG_SHEET)
         /**
          * Fecha de una pestaña de semana a partir de su nombre, como número aaaammdd.
          * Usa la última fecha completa del nombre: "05-11-26" → 20261105; "09 al 15-11-26" → 20261115.
@@ -88,13 +114,17 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         val fila: Int,            // número de fila en la hoja (1 = encabezado)
         val numero: String, val codigo: String, val descripcion: String,
         val cantidad: String, val unidad: String, var vencimiento: String,
-        var noLlego: Boolean = false
+        var noLlego: Boolean = false,
+        var recibido: Double? = null
     )
 
     data class Pedido(
         val control: String, val fecha: String, val proveedor: String, val sede: String,
         var estado: String, val lineas: MutableList<Linea>
     ) {
+        /** Fecha y hora en que se subió el primer soporte (columna "Fecha recibido"). */
+        var fechaRecibido: String = ""
+
         /** Clave estable del pedido para fotos y observaciones: proveedor normalizado (o el nº de control si existe). */
         val clave: String get() = Brands.slug(proveedor).take(24).ifBlank { Brands.slug(control) }
 
@@ -102,7 +132,9 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             put("control", control); put("fecha", fecha); put("proveedor", proveedor); put("sede", sede); put("estado", estado)
             put("lineas", JSONArray().apply { lineas.forEach { l -> put(JSONObject().apply {
                 put("fila", l.fila); put("numero", l.numero); put("codigo", l.codigo); put("descripcion", l.descripcion)
-                put("cantidad", l.cantidad); put("unidad", l.unidad); put("vencimiento", l.vencimiento); put("noLlego", l.noLlego) }) } })
+                put("cantidad", l.cantidad); put("unidad", l.unidad); put("vencimiento", l.vencimiento); put("noLlego", l.noLlego)
+                l.recibido?.let { put("recibido", it) } }) } })
+            put("fechaRecibido", fechaRecibido)
         }.toString()
 
         companion object {
@@ -111,8 +143,10 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
                 val arr = o.getJSONArray("lineas")
                 val lineas = (0 until arr.length()).map { i -> val l = arr.getJSONObject(i)
                     Linea(l.getInt("fila"), l.getString("numero"), l.getString("codigo"), l.getString("descripcion"),
-                        l.getString("cantidad"), l.getString("unidad"), l.getString("vencimiento"), l.optBoolean("noLlego", false)) }.toMutableList()
+                        l.getString("cantidad"), l.getString("unidad"), l.getString("vencimiento"), l.optBoolean("noLlego", false),
+                        if (l.has("recibido")) l.getDouble("recibido") else null) }.toMutableList()
                 return Pedido(o.getString("control"), o.getString("fecha"), o.getString("proveedor"), o.getString("sede"), o.getString("estado"), lineas)
+                    .apply { fechaRecibido = o.optString("fechaRecibido", "") }
             }
         }
     }
@@ -178,7 +212,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             keys.forEach { k -> header.indexOf(k).takeIf { it >= 0 }?.let { return it } }
             // Las columnas que escribe la app (vencimiento, observaciones, no llegó) solo se reconocen por su nombre exacto,
             // para que p. ej. "Fecha" no termine leyendo "Fecha vencimiento"
-            val propias = setOf(norm(COL_VENC), norm(COL_OBS), norm(COL_NO_LLEGO))
+            val propias = setOf(norm(COL_VENC), norm(COL_OBS), norm(COL_NO_LLEGO), norm(COL_RECIBIDO), norm(COL_FECHA_RECIBIDO))
             keys.forEach { k -> header.indexOfFirst { h -> h.isNotEmpty() && h !in propias && (h.startsWith(k) || h.contains(k)) }.takeIf { it >= 0 }?.let { return it } }
             return -1
         }
@@ -195,7 +229,9 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             "estado" to col("Estado"),
             "venc" to col(COL_VENC, "Vencimiento"),
             "obs" to col(COL_OBS, "Observacion"),
-            "nollego" to col(COL_NO_LLEGO, "No llego", "Falta")
+            "nollego" to col(COL_NO_LLEGO, "No llego", "Falta"),
+            "recibido" to col(COL_RECIBIDO, "Cantidad recibida"),
+            "frec" to col(COL_FECHA_RECIBIDO, "Fecha de recepcion")
         )
         if (columnas["proveedor"]!! < 0) {
             throw IOException("La pestaña '$tab' no tiene una columna de proveedor en la fila 1")
@@ -221,7 +257,8 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             }
             pedido.lineas += Linea(filaHoja, cell(row, "numero").ifBlank { (pedido.lineas.size + 1).toString() },
                 cell(row, "codigo"), cell(row, "descripcion"), cell(row, "cantidad"), cell(row, "unidad"), cell(row, "venc"),
-                esSi(cell(row, "nollego")))
+                esSi(cell(row, "nollego")), numero(cell(row, "recibido")))
+            if (pedido.fechaRecibido.isBlank()) pedido.fechaRecibido = cell(row, "frec")
             if (esListo(cell(row, "estado"))) pedido.estado = ESTADO_LISTO
         }
         return Semana(tab, pedidos.values.toList(), columnas, provVencCache)
@@ -264,20 +301,69 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         }
     }
 
-    /** Escribe SÍ / NO en la columna "No llegó" para cada ítem del pedido (la crea si no existe). */
-    fun guardarNoLlego(semana: Semana, pedido: Pedido) {
-        var col = semana.columnas["nollego"] ?: -1
-        if (col < 0) col = columnaOCrear(semana.tab, COL_NO_LLEGO)
-        val letter = colLetter(col)
-        val data = pedido.lineas.map { l ->
-            ValueRange().setRange("'${semana.tab}'!$letter${l.fila}").setValues(listOf(listOf(if (l.noLlego) "SÍ" else "NO")))
-        }
+    /**
+     * Guarda la recepción de cada ítem en una sola escritura: "No llegó" (SÍ / NO) y "Recibido" (número).
+     * Crea las columnas si no existen.
+     */
+    fun guardarRecepcion(semana: Semana, pedido: Pedido) {
+        var colNo = semana.columnas["nollego"] ?: -1
+        if (colNo < 0) colNo = columnaOCrear(semana.tab, COL_NO_LLEGO)
+        var colRec = semana.columnas["recibido"] ?: -1
+        if (colRec < 0) colRec = columnaOCrear(semana.tab, COL_RECIBIDO)
+        val lNo = colLetter(colNo); val lRec = colLetter(colRec)
+        val data = pedido.lineas.flatMap { l -> listOf(
+            ValueRange().setRange("'${semana.tab}'!$lNo${l.fila}").setValues(listOf(listOf(if (l.noLlego) "SÍ" else "NO"))),
+            // Número (no texto) para que se pueda sumar en la hoja; vacío si no se anotó
+            ValueRange().setRange("'${semana.tab}'!$lRec${l.fila}").setValues(listOf(listOf<Any>(l.recibido ?: "")))
+        ) }
         if (data.isNotEmpty()) {
             sheets.spreadsheets().values().batchUpdate(sheetId,
                 com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest().setValueInputOption("RAW").setData(data)
             ).execute()
         }
     }
+
+    /** Anota en "Fecha recibido" la fecha y hora del primer soporte (si ya tenía una, la conserva). */
+    fun marcarFechaRecibido(semana: Semana, pedido: Pedido) {
+        if (pedido.fechaRecibido.isNotBlank()) return
+        var col = semana.columnas["frec"] ?: -1
+        if (col < 0) col = columnaOCrear(semana.tab, COL_FECHA_RECIBIDO)
+        val fecha = ahora()
+        val letter = colLetter(col)
+        val data = pedido.lineas.map { l -> ValueRange().setRange("'${semana.tab}'!$letter${l.fila}").setValues(listOf(listOf(fecha))) }
+        sheets.spreadsheets().values().batchUpdate(sheetId,
+            com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest().setValueInputOption("USER_ENTERED").setData(data)
+        ).execute()
+        pedido.fechaRecibido = fecha
+    }
+
+    // ---------- Mensajes a Compras ----------
+
+    data class Mensaje(val fechaHora: String, val usuario: String, val texto: String, val respuesta: String, val fechaRespuesta: String)
+
+    /** Guarda un mensaje en la pestaña "Mensajes" (la crea a la izquierda con encabezados si no existe). */
+    fun enviarMensaje(texto: String, usuario: String) {
+        val meta = sheets.spreadsheets().get(sheetId).setFields("sheets.properties.title").execute()
+        if (meta.sheets.none { norm(it.properties.title) == norm(MSG_SHEET) }) {
+            sheets.spreadsheets().batchUpdate(sheetId, BatchUpdateSpreadsheetRequest().setRequests(listOf(
+                // index 0: a la izquierda, para que nunca se confunda con una semana
+                Request().setAddSheet(AddSheetRequest().setProperties(SheetProperties().setTitle(MSG_SHEET).setIndex(0)))
+            ))).execute()
+            sheets.spreadsheets().values().update(sheetId, "'$MSG_SHEET'!A1", ValueRange().setValues(listOf(MSG_HEADER)))
+                .setValueInputOption("RAW").execute()
+        }
+        sheets.spreadsheets().values().append(sheetId, "'$MSG_SHEET'!A1", ValueRange().setValues(listOf(listOf(ahora(), usuario, texto, "", ""))))
+            .setValueInputOption("USER_ENTERED").setInsertDataOption("INSERT_ROWS").execute()
+    }
+
+    /** Últimos mensajes de este usuario (el más nuevo primero), con la respuesta de Compras si la hay. */
+    fun misMensajes(usuario: String, max: Int = 10): List<Mensaje> = try {
+        val values = sheets.spreadsheets().values().get(sheetId, "'$MSG_SHEET'!A2:E").execute().getValues() ?: emptyList()
+        values.mapNotNull { r ->
+            fun c(i: Int) = if (i in r.indices) (r[i]?.toString() ?: "").trim() else ""
+            if (c(1).equals(usuario, ignoreCase = true)) Mensaje(c(0), c(1), c(2), c(3), c(4)) else null
+        }.reversed().take(max)
+    } catch (e: Exception) { emptyList() }   // la pestaña aún no existe
 
     /** Marca todas las filas del pedido con el estado dado (crea la columna Estado si falta). */
     fun marcarEstado(semana: Semana, pedido: Pedido, estado: String) {
