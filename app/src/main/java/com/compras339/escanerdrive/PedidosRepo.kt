@@ -22,7 +22,7 @@ import java.util.Locale
 
 /**
  * Acceso a la hoja "planificación de compras": cada pestaña es una semana; la app usa
- * la última pestaña (la de más a la derecha) que no sea "Observaciones".
+ * la pestaña con la fecha más reciente en su nombre (p. ej. "09 al 15-11-26"), sin importar su posición.
  *
  * Fila 1 = encabezados. Columnas reconocidas por su nombre (sin acentos/mayúsculas):
  *   Nº Control · Fecha pedido · Proveedor · Sede · Nº ítem · Código · Descripción ·
@@ -39,6 +39,27 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         const val PROV_VENC_SHEET = "Proveedores vencimiento"
         /** Pestañas que no son semanas de pedidos. */
         private fun esPestanaEspecial(t: String) = norm(t) == norm(OBS_SHEET) || norm(t) == norm(PROV_VENC_SHEET)
+        /**
+         * Fecha de una pestaña de semana a partir de su nombre, como número aaaammdd.
+         * Usa la última fecha completa del nombre: "05-11-26" → 20261105; "09 al 15-11-26" → 20261115.
+         * Devuelve null si el nombre no tiene una fecha.
+         */
+        fun fechaDePestana(titulo: String): Int? {
+            val m = Regex("""(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})""").findAll(titulo).lastOrNull() ?: return null
+            val d = m.groupValues[1].toInt(); val mes = m.groupValues[2].toInt()
+            var a = m.groupValues[3].toInt(); if (a < 100) a += 2000
+            if (d !in 1..31 || mes !in 1..12) return null
+            return a * 10000 + mes * 100 + d
+        }
+
+        /** La semana más reciente: la pestaña con la fecha más nueva en su nombre; si ninguna tiene fecha, la de más a la derecha. */
+        fun elegirSemana(titulos: List<String>): String? {
+            val semanas = titulos.filter { !esPestanaEspecial(it) }
+            val conFecha = semanas.withIndex().mapNotNull { (i, t) -> fechaDePestana(t)?.let { Triple(t, it, i) } }
+            return conFecha.maxWithOrNull(compareBy<Triple<String, Int, Int>>({ it.second }, { it.third }))?.first
+                ?: semanas.lastOrNull()
+        }
+
         fun esSi(v: String?): Boolean = norm(v) in setOf("si", "x", "true", "verdadero", "1")
         const val ESTADO_PENDIENTE = "PENDIENTE"
         /** Estado que escribe la app al subir el soporte de un pedido. */
@@ -121,13 +142,13 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
     private var provVencCache: List<String>? = null
     private var tabCacheAt = 0L
 
-    /** Nombre de la última pestaña (semana vigente), ignorando "Observaciones". */
+    /** Nombre de la pestaña de la semana más reciente (por la fecha de su nombre), ignorando las pestañas especiales. */
     fun ultimaPestana(forzar: Boolean = false): String {
         val cached = tabCache
         if (!forzar && cached != null && System.currentTimeMillis() - tabCacheAt < 10 * 60_000L) return cached
         val meta = sheets.spreadsheets().get(sheetId).setFields("sheets.properties.title").execute()
         val titles = meta.sheets.map { it.properties.title }
-        val tab = titles.lastOrNull { !esPestanaEspecial(it) }
+        val tab = elegirSemana(titles)
             ?: throw IOException("La hoja no tiene pestañas de pedidos")
         // Lista de proveedores con vencimiento (columna A desde la fila 2); se refresca junto con las pestañas
         val provTab = titles.firstOrNull { norm(it) == norm(PROV_VENC_SHEET) }
