@@ -53,6 +53,8 @@ class PedidoDetalleActivity : AppCompatActivity() {
         const val EXTRA_COL_ESTADO = "col_estado"
         const val EXTRA_COL_OBS = "col_obs"
         const val EXTRA_COL_NO_LLEGO = "col_no_llego"
+        const val EXTRA_COL_RECIBIDO = "col_recibido"
+        const val EXTRA_COL_FREC = "col_fecha_recibido"
         /** false = este proveedor no está en la pestaña "Proveedores vencimiento": no se muestra la fecha. */
         const val EXTRA_PIDE_VENC = "pide_venc"
         private val ROJO = Color.parseColor("#C62828")
@@ -104,7 +106,9 @@ class PedidoDetalleActivity : AppCompatActivity() {
         semana = PedidosRepo.Semana(semanaTab, emptyList(), mapOf(
             "venc" to intent.getIntExtra(EXTRA_COL_VENC, -1), "estado" to intent.getIntExtra(EXTRA_COL_ESTADO, -1),
             "obs" to intent.getIntExtra(EXTRA_COL_OBS, -1),
-            "nollego" to intent.getIntExtra(EXTRA_COL_NO_LLEGO, -1)))
+            "nollego" to intent.getIntExtra(EXTRA_COL_NO_LLEGO, -1),
+            "recibido" to intent.getIntExtra(EXTRA_COL_RECIBIDO, -1),
+            "frec" to intent.getIntExtra(EXTRA_COL_FREC, -1)))
         pideVenc = intent.getBooleanExtra(EXTRA_PIDE_VENC, true)
         val sedesUsuario = (intent.getStringArrayListExtra(PedidosActivity.EXTRA_SEDE_KEYS) ?: arrayListOf()).mapNotNull { Brands.sedeByKey(it) }
         sede = PedidosActivity.SEDE_PEDIDOS   // esta vista es de Centro de Producción
@@ -126,10 +130,11 @@ class PedidoDetalleActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvFecha).text = pedido.fecha
         findViewById<TextView>(R.id.tvSede).text = "CENTRO DE PRODUCCIÓN"
         findViewById<TextView>(R.id.tvHeadItems).text = "ÍTEM · ${pedido.lineas.size}"
-        findViewById<TextView>(R.id.tvHeadVenc).visibility = if (pideVenc) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.tvHeadVenc).visibility = View.GONE   // Recibido y Vence van debajo de cada producto
         findViewById<TextView>(R.id.tvAyudaLineas).text =
-            (if (pideVenc) "Toca la fecha de vencimiento de cada ítem para editarla. " else "") +
-            "Marca la casilla ✕ si el producto no llegó. Pulsa Guardar para registrarlo en la hoja de pedidos."
+            "Toca «Recibido» para anotar lo que llegó (con calculadora)" +
+            (if (pideVenc) " y «Vence» para la fecha de vencimiento" else "") +
+            ". Marca ✕ si el producto no llegó. Pulsa Guardar para registrarlo en la hoja de pedidos."
         pintarEstado()
 
         etObs.addTextChangedListener(object : TextWatcher {
@@ -153,26 +158,73 @@ class PedidoDetalleActivity : AppCompatActivity() {
         fechaFields.clear()
         pedido.lineas.forEachIndexed { idx, l ->
             val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                orientation = LinearLayout.VERTICAL
                 setPadding((10 * dp).toInt(), (10 * dp).toInt(), (10 * dp).toInt(), (10 * dp).toInt())
-                if (idx < pedido.lineas.size - 1) background = android.graphics.drawable.GradientDrawable().apply { setColor(Color.WHITE) }
             }
-            // Casilla "no llegó": al marcarla muestra ✕ y resalta el ítem en rojo
+            // Línea 1: casilla "no llegó" · producto · cantidad pedida
+            val l1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val check = TextView(this).apply {
                 gravity = Gravity.CENTER; textSize = 16f; setTypeface(typeface, Typeface.BOLD)
                 layoutParams = LinearLayout.LayoutParams((26 * dp).toInt(), (26 * dp).toInt()).apply { setMargins(0, 0, (10 * dp).toInt(), 0) }
                 contentDescription = "No llegó"
             }
-            row.addView(check)
+            l1.addView(check)
             val tvDesc = TextView(this).apply { text = l.descripcion; textSize = 13f; setTypeface(typeface, Typeface.BOLD) }
             val tvFalta = TextView(this).apply { text = "NO LLEGÓ"; setTextColor(ROJO); textSize = 10f; setTypeface(typeface, Typeface.BOLD) }
-            row.addView(LinearLayout(this).apply {
+            l1.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 addView(tvDesc)
                 if (l.codigo.isNotBlank()) addView(TextView(context).apply { text = "Código: ${l.codigo}"; setTextColor(MUTED); textSize = 11f })
                 addView(tvFalta)
             })
+            l1.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; gravity = Gravity.END
+                layoutParams = LinearLayout.LayoutParams((64 * dp).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
+                addView(TextView(context).apply { text = l.cantidad; setTextColor(INK); textSize = 14f; setTypeface(typeface, Typeface.BOLD); gravity = Gravity.END })
+                addView(TextView(context).apply { text = l.unidad; setTextColor(MUTED); textSize = 10f; gravity = Gravity.END })
+            })
+            row.addView(l1)
+
+            // Línea 2: Recibido (con calculadora) · Vence (solo proveedores de la lista)
+            val l2 = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { setMargins((36 * dp).toInt(), (8 * dp).toInt(), 0, 0) }
+            }
+            val recibido = campo("RECIBIDO")
+            fun pintarRecibido() {
+                val pedida = PedidosRepo.numero(l.cantidad)
+                val v = l.recibido
+                val (titulo, valor) = recibido
+                valor.text = if (v == null) "— ${l.unidad}" else "${PedidosRepo.formatoNum(v)} ${l.unidad}"
+                val igual = v != null && pedida != null && Math.abs(v - pedida) < 0.0005
+                titulo.text = if (v != null && pedida != null && !igual)
+                    "RECIBIDO · dif. ${if (v - pedida > 0) "+" else ""}${PedidosRepo.formatoNum(v - pedida)}" else "RECIBIDO"
+                (titulo.parent as View).setBackgroundResource(when {
+                    v == null -> R.drawable.bg_field_warn
+                    igual -> R.drawable.bg_field_light
+                    else -> R.drawable.bg_field_warn
+                })
+                valor.setTextColor(when { v == null -> MUTED; igual -> Color.parseColor("#0B5D3B"); else -> Color.parseColor("#9A5B00") })
+            }
+            (recibido.first.parent as View).setOnClickListener {
+                calculadora(l) { pintarRecibido() }
+            }
+            pintarRecibido()
+            l2.addView(recibido.first.parent as View)
+            if (pideVenc) {
+                val vence = campo("VENCE")
+                (vence.first.parent as View).layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .apply { setMargins((8 * dp).toInt(), 0, 0, 0) }
+                val fecha = vence.second
+                (vence.first.parent as View).setOnClickListener { elegirFecha(l, fecha) }
+                pintarFecha(fecha, l.vencimiento)
+                fechaFields[l.fila] = fecha
+                l2.addView(vence.first.parent as View)
+            }
+            row.addView(l2)
+
             fun pintarNoLlego() {
                 check.text = if (l.noLlego) "✕" else ""
                 check.setTextColor(Color.WHITE)
@@ -186,20 +238,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
             }
             check.setOnClickListener { l.noLlego = !l.noLlego; pintarNoLlego() }
             pintarNoLlego()
-            row.addView(LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.END
-                layoutParams = LinearLayout.LayoutParams((64 * dp).toInt(), LinearLayout.LayoutParams.WRAP_CONTENT)
-                addView(TextView(context).apply { text = l.cantidad; setTextColor(INK); textSize = 14f; setTypeface(typeface, Typeface.BOLD); gravity = Gravity.END })
-                addView(TextView(context).apply { text = l.unidad; setTextColor(MUTED); textSize = 10f; gravity = Gravity.END })
-            })
-            val fecha = TextView(this).apply {
-                textSize = 12f; setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER; setTextColor(INK)
-                layoutParams = LinearLayout.LayoutParams((112 * dp).toInt(), (40 * dp).toInt()).apply { setMargins((8 * dp).toInt(), 0, 0, 0) }
-                setOnClickListener { elegirFecha(l, this) }
-            }
-            pintarFecha(fecha, l.vencimiento)
-            fechaFields[l.fila] = fecha
-            if (pideVenc) row.addView(fecha)
+
             layoutLineas.addView(row)
             if (idx < pedido.lineas.size - 1) layoutLineas.addView(View(this).apply {
                 setBackgroundColor(Color.parseColor("#EEF1F5"))
@@ -208,9 +247,104 @@ class PedidoDetalleActivity : AppCompatActivity() {
         }
     }
 
+    /** Casilla con título pequeño y valor (Recibido / Vence). Devuelve (título, valor); el contenedor es su padre. */
+    private fun campo(titulo: String): Pair<TextView, TextView> {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((8 * dp).toInt(), (5 * dp).toInt(), (8 * dp).toInt(), (5 * dp).toInt())
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setBackgroundResource(R.drawable.bg_field_warn)
+            isClickable = true; isFocusable = true
+            tag = "campo"
+        }
+        val t = TextView(this).apply { text = titulo; setTextColor(MUTED); textSize = 9f; setTypeface(typeface, Typeface.BOLD); maxLines = 1 }
+        val v = TextView(this).apply { textSize = 13f; setTypeface(typeface, Typeface.BOLD); setTextColor(INK); maxLines = 1 }
+        box.addView(t); box.addView(v)
+        return t to v
+    }
+
+    // ---------- Calculadora de "Recibido" ----------
+
+    /** Calculadora para sumar cestas, sacos o cajas; "Usar total" deja el resultado en Recibido (se guarda con Guardar). */
+    private fun calculadora(l: PedidosRepo.Linea, alTerminar: () -> Unit) {
+        val toks = mutableListOf<String>()          // números y operadores: "12.5", "+", "13.2"
+        var cur = l.recibido?.let { PedidosRepo.formatoNum(it).replace(',', '.') } ?: ""
+        fun esOp(x: String) = x == "+" || x == "-" || x == "×"
+        fun total(): Double {
+            var t = 0.0; var op = "+"
+            (toks + cur).filter { it.isNotEmpty() }.forEach { x ->
+                if (esOp(x)) op = x else x.toDoubleOrNull()?.let { v -> t = when (op) { "-" -> t - v; "×" -> t * v; else -> t + v } }
+            }
+            return t
+        }
+        val tvExpr = TextView(this).apply { setTextColor(MUTED); textSize = 13f; gravity = Gravity.END }
+        val tvTotal = TextView(this).apply { setTextColor(INK); textSize = 28f; setTypeface(typeface, Typeface.BOLD); gravity = Gravity.END }
+        fun pintar() {
+            tvExpr.text = (toks + cur).filter { it.isNotEmpty() }.joinToString(" ") { if (it == "-") "−" else it.replace('.', ',') }.ifEmpty { " " }
+            tvTotal.text = "${PedidosRepo.formatoNum(total())} ${l.unidad}"
+        }
+        val raiz = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((18 * dp).toInt(), (8 * dp).toInt(), (18 * dp).toInt(), 0)
+        }
+        raiz.addView(TextView(this).apply { text = "Pedido: ${l.cantidad} ${l.unidad} · suma cada cesta, saco o caja"; setTextColor(MUTED); textSize = 12f })
+        raiz.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#F2F4F7"))
+            setPadding((12 * dp).toInt(), (8 * dp).toInt(), (12 * dp).toInt(), (8 * dp).toInt())
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { setMargins(0, (8 * dp).toInt(), 0, (8 * dp).toInt()) }
+            addView(tvExpr); addView(tvTotal)
+        })
+        val teclas = listOf(listOf("7", "8", "9", "←"), listOf("4", "5", "6", "×"), listOf("1", "2", "3", "−"), listOf("C", "0", ",", "+"))
+        teclas.forEach { fila ->
+            raiz.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                fila.forEach { k ->
+                    addView(MaterialButton(context).apply {
+                        text = k; textSize = 18f; isAllCaps = false; insetTop = 0; insetBottom = 0
+                        cornerRadius = (10 * dp).toInt(); minWidth = 0; minimumWidth = 0
+                        setTextColor(if (k == "C") ROJO else INK)
+                        backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor(
+                            if (k in listOf("+", "−", "×", "←")) "#DCE4EE" else "#EEF1F5"))
+                        layoutParams = LinearLayout.LayoutParams(0, (48 * dp).toInt(), 1f).apply { setMargins((3 * dp).toInt(), (3 * dp).toInt(), (3 * dp).toInt(), (3 * dp).toInt()) }
+                        setOnClickListener {
+                            when (k) {
+                                "C" -> { toks.clear(); cur = "" }
+                                "←" -> if (cur.isNotEmpty()) cur = cur.dropLast(1) else if (toks.isNotEmpty()) cur = toks.removeAt(toks.size - 1).let { if (esOp(it)) "" else it }
+                                "," -> if (!cur.contains('.')) cur = (cur.ifEmpty { "0" }) + "."
+                                "+", "−", "×" -> {
+                                    val op = if (k == "−") "-" else k
+                                    if (cur.isNotEmpty()) { toks += cur; cur = "" }
+                                    if (toks.isNotEmpty()) { if (esOp(toks.last())) toks[toks.size - 1] = op else toks += op }
+                                }
+                                else -> if (cur.length < 9) cur += k
+                            }
+                            pintar()
+                        }
+                    })
+                }
+            })
+        }
+        pintar()
+        AlertDialog.Builder(this)
+            .setTitle("${l.descripcion} · Recibido")
+            .setView(raiz)
+            .setPositiveButton("Usar total") { _, _ ->
+                val vacio = toks.isEmpty() && cur.isEmpty()
+                l.recibido = if (vacio) null else total()
+                alTerminar()
+            }
+            .setNeutralButton("Borrar") { _, _ -> l.recibido = null; alTerminar() }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
     private fun pintarFecha(tv: TextView, valor: String) {
         tv.text = valor.ifBlank { "dd/mm/aaaa" }
-        tv.setBackgroundResource(if (valor.isBlank()) R.drawable.bg_field_warn else R.drawable.bg_field_light)
+        // Si la fecha está dentro de una casilla (campo "VENCE"), se colorea la casilla completa
+        val caja = (tv.parent as? View)?.takeIf { it.tag == "campo" } ?: tv
+        caja.setBackgroundResource(if (valor.isBlank()) R.drawable.bg_field_warn else R.drawable.bg_field_light)
         tv.setTextColor(if (valor.isBlank()) MUTED else INK)
     }
 
@@ -247,7 +381,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
             try {
                 withContext(Dispatchers.IO) {
                     if (pideVenc) repo.guardarVencimientos(semana, pedido)
-                    repo.guardarNoLlego(semana, pedido)
+                    repo.guardarRecepcion(semana, pedido)
                     if (obs.isNotEmpty()) {
                         repo.guardarObservacion(semanaTab, pedido, obs, account.email ?: "")
                         // También queda en la columna "Observaciones" de la pestaña de la semana
@@ -380,6 +514,7 @@ class PedidoDetalleActivity : AppCompatActivity() {
                         subidos += name
                     }
                     repo.marcarEstado(semana, pedido, PedidosRepo.ESTADO_LISTO)
+                    repo.marcarFechaRecibido(semana, pedido)   // fecha y hora del primer soporte
                 }
                 PedidosActivity.recargarAlVolver = true
                 pintarEstado()
