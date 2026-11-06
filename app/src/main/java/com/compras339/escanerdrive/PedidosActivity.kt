@@ -131,6 +131,7 @@ class PedidosActivity : AppCompatActivity() {
             btnBack.setOnClickListener { finish() }
         }
         findViewById<MaterialButton>(R.id.btnSinPedido).setOnClickListener { escanearSinPedido() }
+        findViewById<ImageButton>(R.id.btnMensajes).setOnClickListener { abrirMensajes() }
         etBuscar.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -310,6 +311,8 @@ class PedidosActivity : AppCompatActivity() {
             putExtra(PedidoDetalleActivity.EXTRA_COL_ESTADO, s.columnas["estado"] ?: -1)
             putExtra(PedidoDetalleActivity.EXTRA_COL_OBS, s.columnas["obs"] ?: -1)
             putExtra(PedidoDetalleActivity.EXTRA_COL_NO_LLEGO, s.columnas["nollego"] ?: -1)
+            putExtra(PedidoDetalleActivity.EXTRA_COL_RECIBIDO, s.columnas["recibido"] ?: -1)
+            putExtra(PedidoDetalleActivity.EXTRA_COL_FREC, s.columnas["frec"] ?: -1)
             putExtra(PedidoDetalleActivity.EXTRA_PIDE_VENC, s.pideVencimiento(p.proveedor))
         })
     }
@@ -391,6 +394,68 @@ class PedidosActivity : AppCompatActivity() {
                 setLoading(false)
                 toast("No se pudo subir: ${e.localizedMessage}")
             }
+        }
+    }
+
+    // ---------- Mensajes a Compras ----------
+
+    /** Muestra los mensajes anteriores del usuario (con fecha, hora y respuesta) y permite escribir uno nuevo. */
+    private fun abrirMensajes() {
+        val usuario = GoogleSignIn.getLastSignedInAccount(this)?.email ?: return
+        setLoading(true)
+        lifecycleScope.launch {
+            val anteriores = withContext(Dispatchers.IO) { repo.misMensajes(usuario) }
+            setLoading(false)
+            val raiz = LinearLayout(this@PedidosActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding((20 * dp).toInt(), (4 * dp).toInt(), (20 * dp).toInt(), 0)
+            }
+            raiz.addView(TextView(this@PedidosActivity).apply {
+                text = "Llega a Compras con tu correo, la fecha y la hora."; setTextColor(MUTED); textSize = 12f
+            })
+            val et = EditText(this@PedidosActivity).apply {
+                hint = "Escribe tu mensaje…"; minLines = 3; maxLines = 6; textSize = 14f
+                gravity = Gravity.TOP or Gravity.START
+                filters = arrayOf(android.text.InputFilter.LengthFilter(500))
+            }
+            raiz.addView(et)
+            if (anteriores.isNotEmpty()) {
+                raiz.addView(TextView(this@PedidosActivity).apply {
+                    text = "TUS MENSAJES"; setTextColor(MUTED); textSize = 10f; setTypeface(typeface, Typeface.BOLD)
+                    setPadding(0, (12 * dp).toInt(), 0, (4 * dp).toInt())
+                })
+                anteriores.forEach { m ->
+                    raiz.addView(TextView(this@PedidosActivity).apply {
+                        text = "${m.fechaHora}\n${m.texto}"; setTextColor(INK); textSize = 12f
+                        setPadding(0, (4 * dp).toInt(), 0, (2 * dp).toInt())
+                    })
+                    if (m.respuesta.isNotBlank()) raiz.addView(TextView(this@PedidosActivity).apply {
+                        text = "↳ Compras" + (if (m.fechaRespuesta.isNotBlank()) " · ${m.fechaRespuesta}" else "") + "\n${m.respuesta}"
+                        setTextColor(Color.parseColor("#0B5D3B")); textSize = 12f
+                        background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 8 * dp; setColor(Color.parseColor("#EAF7EF")) }
+                        setPadding((8 * dp).toInt(), (6 * dp).toInt(), (8 * dp).toInt(), (6 * dp).toInt())
+                    })
+                }
+            }
+            val scroll = android.widget.ScrollView(this@PedidosActivity).apply { addView(raiz) }
+            AlertDialog.Builder(this@PedidosActivity)
+                .setTitle("Escribir a Compras")
+                .setView(scroll)
+                .setPositiveButton("Enviar") { _, _ ->
+                    val texto = et.text.toString().trim()
+                    if (texto.isEmpty()) { toast("El mensaje está vacío"); return@setPositiveButton }
+                    lifecycleScope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { repo.enviarMensaje(texto, usuario) }
+                            toast("Mensaje enviado a Compras")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error al enviar mensaje", e)
+                            toast("No se pudo enviar: ${e.localizedMessage}")
+                        }
+                    }
+                }
+                .setNegativeButton("Cerrar", null)
+                .show()
         }
     }
 
