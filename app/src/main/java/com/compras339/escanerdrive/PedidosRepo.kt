@@ -356,13 +356,24 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             .setValueInputOption("USER_ENTERED").setInsertDataOption("INSERT_ROWS").execute()
     }
 
-    /** Últimos mensajes de este usuario (el más nuevo primero), con la respuesta de Compras si la hay. */
-    fun misMensajes(usuario: String, max: Int = 10): List<Mensaje> = try {
-        val values = sheets.spreadsheets().values().get(sheetId, "'$MSG_SHEET'!A2:E").execute().getValues() ?: emptyList()
-        values.mapNotNull { r ->
+    /**
+     * Mensajes de este usuario en orden de conversación (el más viejo arriba, los últimos [max]),
+     * con la respuesta que Compras escribe en la columna D ("Respuesta") de la pestaña "Mensajes".
+     * Si la pestaña es antigua y no tiene las columnas Respuesta / Fecha respuesta, les pone el encabezado.
+     */
+    fun misMensajes(usuario: String, max: Int = 40): List<Mensaje> = try {
+        val values = sheets.spreadsheets().values().get(sheetId, "'$MSG_SHEET'!A1:E").execute().getValues() ?: emptyList()
+        val enc = values.firstOrNull() ?: emptyList()
+        if (enc.size < MSG_HEADER.size) {
+            try {
+                sheets.spreadsheets().values().update(sheetId, "'$MSG_SHEET'!A1", ValueRange().setValues(listOf(MSG_HEADER)))
+                    .setValueInputOption("RAW").execute()
+            } catch (_: Exception) { }
+        }
+        values.drop(1).mapNotNull { r ->
             fun c(i: Int) = if (i in r.indices) (r[i]?.toString() ?: "").trim() else ""
-            if (c(1).equals(usuario, ignoreCase = true)) Mensaje(c(0), c(1), c(2), c(3), c(4)) else null
-        }.reversed().take(max)
+            if (c(1).equals(usuario, ignoreCase = true) && c(2).isNotEmpty()) Mensaje(c(0), c(1), c(2), c(3), c(4)) else null
+        }.takeLast(max)
     } catch (e: Exception) { emptyList() }   // la pestaña aún no existe
 
     /** Marca todas las filas del pedido con el estado dado (crea la columna Estado si falta). */
