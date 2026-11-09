@@ -257,7 +257,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
             }
             pedido.lineas += Linea(filaHoja, cell(row, "numero").ifBlank { (pedido.lineas.size + 1).toString() },
                 cell(row, "codigo"), cell(row, "descripcion"), cell(row, "cantidad"), cell(row, "unidad"), cell(row, "venc"),
-                esSi(cell(row, "nollego")), numero(cell(row, "recibido")))
+                norm(cell(row, "nollego")) == "no", numero(cell(row, "recibido")))   // "NO" = no llegó
             if (pedido.fechaRecibido.isBlank()) pedido.fechaRecibido = cell(row, "frec")
             if (esListo(cell(row, "estado"))) pedido.estado = ESTADO_LISTO
         }
@@ -302,7 +302,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
     }
 
     /**
-     * Guarda la recepción de cada ítem en una sola escritura: "No llegó" (SÍ / NO) y "Recibido" (número).
+     * Guarda la recepción de cada ítem en una sola escritura: "No llegó" (NO = no llegó · SÍ = llegó) y "Recibido" (número).
      * Crea las columnas si no existen.
      */
     fun guardarRecepcion(semana: Semana, pedido: Pedido) {
@@ -312,7 +312,7 @@ class PedidosRepo(context: Context, account: GoogleSignInAccount) {
         if (colRec < 0) colRec = columnaOCrear(semana.tab, COL_RECIBIDO)
         val lNo = colLetter(colNo); val lRec = colLetter(colRec)
         val data = pedido.lineas.flatMap { l -> listOf(
-            ValueRange().setRange("'${semana.tab}'!$lNo${l.fila}").setValues(listOf(listOf(if (l.noLlego) "SÍ" else "NO"))),
+            ValueRange().setRange("'${semana.tab}'!$lNo${l.fila}").setValues(listOf(listOf(if (l.noLlego) "NO" else "SÍ"))),
             // Número (no texto) para que se pueda sumar en la hoja; vacío si no se anotó
             ValueRange().setRange("'${semana.tab}'!$lRec${l.fila}").setValues(listOf(listOf<Any>(l.recibido ?: "")))
         ) }
