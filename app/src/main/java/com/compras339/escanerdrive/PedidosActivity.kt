@@ -208,6 +208,7 @@ class PedidosActivity : AppCompatActivity() {
                 semana = s
                 tvEstado.visibility = View.GONE
                 pintar()
+                revisarRespuestas()   // una sola vez: ¿Compras respondió algo nuevo?
             } catch (e: Exception) {
                 Log.e(TAG, "Error al cargar pedidos", e)
                 val limite = (e as? com.google.api.client.googleapis.json.GoogleJsonResponseException)?.statusCode == 429
@@ -399,64 +400,174 @@ class PedidosActivity : AppCompatActivity() {
 
     // ---------- Mensajes a Compras ----------
 
-    /** Muestra los mensajes anteriores del usuario (con fecha, hora y respuesta) y permite escribir uno nuevo. */
+    private var respuestasRevisadas = false
+    private fun prefsMsg() = getSharedPreferences("mensajes", MODE_PRIVATE)
+    private fun claveVistas(usuario: String) = "respuestas_vistas_" + usuario.lowercase(Locale.ROOT)
+
+    /** Una vez por apertura de la pantalla: si Compras respondió algo nuevo, pinta el ícono de mensajes en naranja. */
+    private fun revisarRespuestas() {
+        if (respuestasRevisadas) return
+        respuestasRevisadas = true
+        val usuario = GoogleSignIn.getLastSignedInAccount(this)?.email ?: return
+        lifecycleScope.launch {
+            val lista = withContext(Dispatchers.IO) { repo.misMensajes(usuario) }
+            val respondidas = lista.count { it.respuesta.isNotBlank() }
+            if (respondidas > prefsMsg().getInt(claveVistas(usuario), 0)) {
+                marcarIconoMensajes(nuevo = true)
+                toast("Compras respondió tu mensaje")
+            }
+        }
+    }
+
+    private fun marcarIconoMensajes(nuevo: Boolean) {
+        val btn = findViewById<ImageButton>(R.id.btnMensajes)
+        androidx.core.widget.ImageViewCompat.setImageTintList(btn,
+            android.content.res.ColorStateList.valueOf(if (nuevo) ACCENT else Color.parseColor("#F4F1EA")))
+    }
+
+    /** Ventana completa tipo chat: lo que el usuario envió (derecha) y lo que Compras respondió (izquierda). */
     private fun abrirMensajes() {
         val usuario = GoogleSignIn.getLastSignedInAccount(this)?.email ?: return
-        setLoading(true)
-        lifecycleScope.launch {
-            val anteriores = withContext(Dispatchers.IO) { repo.misMensajes(usuario) }
-            setLoading(false)
-            val raiz = LinearLayout(this@PedidosActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding((20 * dp).toInt(), (4 * dp).toInt(), (20 * dp).toInt(), 0)
-            }
-            raiz.addView(TextView(this@PedidosActivity).apply {
-                text = "Llega a Compras con tu correo, la fecha y la hora."; setTextColor(MUTED); textSize = 12f
-            })
-            val et = EditText(this@PedidosActivity).apply {
-                hint = "Escribe tu mensaje…"; minLines = 3; maxLines = 6; textSize = 14f
-                gravity = Gravity.TOP or Gravity.START
-                filters = arrayOf(android.text.InputFilter.LengthFilter(500))
-            }
-            raiz.addView(et)
-            if (anteriores.isNotEmpty()) {
-                raiz.addView(TextView(this@PedidosActivity).apply {
-                    text = "TUS MENSAJES"; setTextColor(MUTED); textSize = 10f; setTypeface(typeface, Typeface.BOLD)
-                    setPadding(0, (12 * dp).toInt(), 0, (4 * dp).toInt())
-                })
-                anteriores.forEach { m ->
-                    raiz.addView(TextView(this@PedidosActivity).apply {
-                        text = "${m.fechaHora}\n${m.texto}"; setTextColor(INK); textSize = 12f
-                        setPadding(0, (4 * dp).toInt(), 0, (2 * dp).toInt())
-                    })
-                    if (m.respuesta.isNotBlank()) raiz.addView(TextView(this@PedidosActivity).apply {
-                        text = "↳ Compras" + (if (m.fechaRespuesta.isNotBlank()) " · ${m.fechaRespuesta}" else "") + "\n${m.respuesta}"
-                        setTextColor(Color.parseColor("#0B5D3B")); textSize = 12f
-                        background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 8 * dp; setColor(Color.parseColor("#EAF7EF")) }
-                        setPadding((8 * dp).toInt(), (6 * dp).toInt(), (8 * dp).toInt(), (6 * dp).toInt())
-                    })
-                }
-            }
-            val scroll = android.widget.ScrollView(this@PedidosActivity).apply { addView(raiz) }
-            AlertDialog.Builder(this@PedidosActivity)
-                .setTitle("Escribir a Compras")
-                .setView(scroll)
-                .setPositiveButton("Enviar") { _, _ ->
-                    val texto = et.text.toString().trim()
-                    if (texto.isEmpty()) { toast("El mensaje está vacío"); return@setPositiveButton }
-                    lifecycleScope.launch {
-                        try {
-                            withContext(Dispatchers.IO) { repo.enviarMensaje(texto, usuario) }
-                            toast("Mensaje enviado a Compras")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error al enviar mensaje", e)
-                            toast("No se pudo enviar: ${e.localizedMessage}")
-                        }
-                    }
-                }
-                .setNegativeButton("Cerrar", null)
-                .show()
+        val ctx = this
+        fun px(v: Int) = (v * dp).toInt()
+        fun burbuja(color: String, radio: Float = 14 * dp) = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = radio; setColor(Color.parseColor(color))
         }
+
+        val dialog = android.app.Dialog(ctx, android.R.style.Theme_Material_Light_NoActionBar)
+        val raiz = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.parseColor("#EEF1F4")) }
+
+        // --- Barra superior ---
+        val barra = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(BG); setPadding(px(4), px(8), px(4), px(8))
+        }
+        val btnCerrar = ImageButton(ctx).apply {
+            setImageResource(R.drawable.ic_arrow_forward); rotation = 180f
+            setColorFilter(Color.parseColor("#F4F1EA")); setBackgroundColor(Color.TRANSPARENT)
+            contentDescription = "Cerrar"
+            setOnClickListener { dialog.dismiss() }
+        }
+        barra.addView(btnCerrar, LinearLayout.LayoutParams(px(44), px(44)))
+        val titulos = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        titulos.addView(TextView(ctx).apply {
+            text = "Mensajes a Compras"; setTextColor(Color.WHITE); textSize = 18f; setTypeface(typeface, Typeface.BOLD)
+        })
+        titulos.addView(TextView(ctx).apply {
+            text = "Compras te responde aquí mismo"; setTextColor(Color.parseColor("#B7C2CE")); textSize = 11f
+        })
+        barra.addView(titulos, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        val btnRecargar = ImageButton(ctx).apply {
+            setImageResource(android.R.drawable.ic_popup_sync)
+            setColorFilter(Color.parseColor("#F4F1EA")); setBackgroundColor(Color.TRANSPARENT)
+            contentDescription = "Actualizar"
+        }
+        barra.addView(btnRecargar, LinearLayout.LayoutParams(px(44), px(44)))
+        raiz.addView(barra)
+
+        // --- Conversación ---
+        val lista = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(px(12), px(12), px(12), px(12)) }
+        val scroll = android.widget.ScrollView(ctx).apply { addView(lista); isFillViewport = true }
+        raiz.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        fun agregarBurbuja(texto: String, pie: String, mio: Boolean, pendiente: Boolean = false) {
+            val fila = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = if (mio) Gravity.END else Gravity.START
+                setPadding(if (mio) px(48) else 0, px(3), if (mio) 0 else px(48), px(3))
+            }
+            fila.addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                background = burbuja(if (mio) "#FFF1D6" else "#E3F4EA")
+                setPadding(px(12), px(8), px(12), px(8))
+                if (!mio) addView(TextView(ctx).apply {
+                    text = "Compras"; setTextColor(Color.parseColor("#0B5D3B")); textSize = 11f; setTypeface(typeface, Typeface.BOLD)
+                })
+                addView(TextView(ctx).apply { text = texto; setTextColor(INK); textSize = 14f; setTextIsSelectable(true) })
+                addView(TextView(ctx).apply {
+                    text = pie; setTextColor(if (pendiente) ACCENT else MUTED); textSize = 10f
+                    gravity = Gravity.END; setPadding(0, px(2), 0, 0)
+                })
+            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            lista.addView(fila, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+
+        fun pintarConversacion(mensajes: List<PedidosRepo.Mensaje>) {
+            lista.removeAllViews()
+            if (mensajes.isEmpty()) {
+                lista.addView(TextView(ctx).apply {
+                    text = "Aún no has escrito a Compras.\nTu mensaje llega con tu correo, la fecha y la hora."
+                    setTextColor(MUTED); textSize = 13f; gravity = Gravity.CENTER; setPadding(px(16), px(40), px(16), 0)
+                })
+            }
+            mensajes.forEach { m ->
+                val sinRespuesta = m.respuesta.isBlank()
+                agregarBurbuja(m.texto, m.fechaHora + if (sinRespuesta) " · esperando respuesta" else " · ✓ respondido", mio = true, pendiente = sinRespuesta)
+                if (!sinRespuesta) agregarBurbuja(m.respuesta, m.fechaRespuesta, mio = false)
+            }
+            scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+        }
+
+        val spinner = ProgressBar(ctx).apply { isIndeterminate = true }
+        fun recargar() {
+            lista.removeAllViews()
+            lista.addView(spinner, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, px(60)))
+            lifecycleScope.launch {
+                val mensajes = withContext(Dispatchers.IO) { repo.misMensajes(usuario) }
+                pintarConversacion(mensajes)
+                // Todo lo respondido queda como "visto": el ícono vuelve a su color normal
+                prefsMsg().edit().putInt(claveVistas(usuario), mensajes.count { it.respuesta.isNotBlank() }).apply()
+                marcarIconoMensajes(nuevo = false)
+            }
+        }
+        btnRecargar.setOnClickListener { recargar() }
+
+        // --- Barra para escribir ---
+        val barraEscribir = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM
+            setBackgroundColor(Color.WHITE); setPadding(px(10), px(8), px(10), px(8))
+        }
+        val et = EditText(ctx).apply {
+            hint = "Escribe tu mensaje…"; minLines = 1; maxLines = 5; textSize = 14f
+            filters = arrayOf(android.text.InputFilter.LengthFilter(500))
+            background = burbuja("#F1F3F6", 20 * dp); setPadding(px(14), px(10), px(14), px(10))
+        }
+        barraEscribir.addView(et, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        val btnEnviar = MaterialButton(ctx).apply {
+            text = "Enviar"; setTextColor(INK); backgroundTintList = android.content.res.ColorStateList.valueOf(ACCENT)
+            cornerRadius = px(20)
+        }
+        barraEscribir.addView(btnEnviar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(8) })
+        raiz.addView(barraEscribir)
+
+        btnEnviar.setOnClickListener {
+            val texto = et.text.toString().trim()
+            if (texto.isEmpty()) { toast("El mensaje está vacío"); return@setOnClickListener }
+            btnEnviar.isEnabled = false
+            lifecycleScope.launch {
+                try {
+                    withContext(Dispatchers.IO) { repo.enviarMensaje(texto, usuario) }
+                    et.setText("")
+                    if (lista.getChildAt(0) is TextView) lista.removeAllViews()   // quita el aviso de "aún no has escrito"
+                    agregarBurbuja(texto, PedidosRepo.ahora() + " · esperando respuesta", mio = true, pendiente = true)
+                    scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error al enviar mensaje", e)
+                    toast("No se pudo enviar: ${e.localizedMessage}")
+                } finally {
+                    btnEnviar.isEnabled = true
+                }
+            }
+        }
+
+        dialog.setContentView(raiz)
+        dialog.window?.apply {
+            setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+            setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            statusBarColor = BG
+        }
+        dialog.show()
+        recargar()
     }
 
     // ---------- Pestaña "Sin pedido" ----------
